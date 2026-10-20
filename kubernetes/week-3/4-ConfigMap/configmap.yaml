@@ -8,4 +8,5 @@ metadata:
 data:                                       # Anahtar=değer verisi
   # data altındaki her anahtar=değer bir yapılandırma girdisidir. Değerler her zaman string'dir.
   APP_MODE: "demo"                          # Uygulama modu
-  LOG_LEVEL: "Information"                  # Log seviyesi
+  LOG_LEVEL: "Information"
+  XFeature: "true"                          # Log seviyesi

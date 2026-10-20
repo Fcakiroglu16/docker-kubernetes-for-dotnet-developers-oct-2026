@@ -1,17 +1,22 @@
 apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
 kind: Pod                                   # Nesne türü: Pod (Kubernetes'te çalışan en küçük birim)
 metadata:
-  name: weather-api                         # Nesnenin adı (namespace içinde benzersiz olmalı)
+  name: microservice1-labeled               # Nesnenin adı (namespace içinde benzersiz olmalı)
   namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  # Label'lar anahtar=değer çiftleridir. Nesneleri gruplamak ve filtrelemek için kullanılır.
   labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
-    app: weather-api                        # Uygulamanın adı
+    app: microservice1-api                  # Uygulamanın adı
+    tier: backend                           # Uygulama katmanı
+    environment: development                # Çalışma ortamı
+    version: v2                             # Uygulama sürümü
 spec:                                       # Pod'un istenen özellikleri (spec)
   containers:                               # Pod içinde çalışacak container'lar
-    - name: weather-api                     # Container'ın adı
-      image: weather-api:1.0                # Çalıştırılacak image (ad:etiket)
-      imagePullPolicy: IfNotPresent   # image registry'de değil, node'da yerel olarak var
+    - name: microservice1-api               # Container'ın adı
+      image: microservice1-api:1.6          # Çalıştırılacak image (ad:etiket)
+      imagePullPolicy: IfNotPresent         # IfNotPresent: image node'da varsa registry'ye gitme
       ports:                                # Container'ın dinlediği portlar (bilgilendirme amaçlı)
-        - containerPort: 8080               # Container içindeki port numarası
+        - name: http                        # Port adı (probe ve Service bu adla başvurabilir)
+          containerPort: 8080               # Container içindeki port numarası
       resources:                            # CPU/memory istek ve limitleri (ResourceQuota ve LimitRange gereği zorunlu)
         requests:                           # Scheduler'ın Pod için ayıracağı garanti miktar
           cpu: "100m"                       # 100m = 0.1 çekirdek ayrılır

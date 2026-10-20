@@ -1,22 +1,20 @@
 apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
 kind: Pod                                   # Nesne türü: Pod (Kubernetes'te çalışan en küçük birim)
 metadata:
-  name: microservice1-labeled               # Nesnenin adı (namespace içinde benzersiz olmalı)
+  name: weather-api-configmap-envfrom                          # Nesnenin adı (namespace içinde benzersiz olmalı)
   namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
-  # Label'lar anahtar=değer çiftleridir. Nesneleri gruplamak ve filtrelemek için kullanılır.
   labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
-    app: microservice1-api                  # Uygulamanın adı
-    tier: backend                           # Uygulama katmanı
-    environment: development                # Çalışma ortamı
-    version: v1                             # Uygulama sürümü
+    app: weather-api                  # Uygulamanın adı
 spec:                                       # Pod'un istenen özellikleri (spec)
   containers:                               # Pod içinde çalışacak container'lar
-    - name: microservice1-api               # Container'ın adı
-      image: microservice1-api:1.6          # Çalıştırılacak image (ad:etiket)
+    - name: weather-api               # Container'ın adı
+      image: weather-api:3.0          # Çalıştırılacak image (ad:etiket)
       imagePullPolicy: IfNotPresent         # IfNotPresent: image node'da varsa registry'ye gitme
-      ports:                                # Container'ın dinlediği portlar (bilgilendirme amaçlı)
-        - name: http                        # Port adı (probe ve Service bu adla başvurabilir)
-          containerPort: 8080               # Container içindeki port numarası
+      # Yol 2: ConfigMap'in tüm anahtarlarını ortam değişkeni yap
+      envFrom:                              # Bir nesnenin tüm anahtarlarını toplu olarak ortam değişkeni yap
+        - configMapRef:                     # ConfigMap'teki TÜM anahtarları ortam değişkeni yap
+            name: app-yaml                  # ConfigMap'in adı
+          # prefix: CFG_   # istenirse tüm değişken adlarının başına önek eklenir
       resources:                            # CPU/memory istek ve limitleri (ResourceQuota ve LimitRange gereği zorunlu)
         requests:                           # Scheduler'ın Pod için ayıracağı garanti miktar
           cpu: "100m"                       # 100m = 0.1 çekirdek ayrılır

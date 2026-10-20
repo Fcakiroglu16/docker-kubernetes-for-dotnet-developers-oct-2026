@@ -2,10 +2,10 @@
 
 ## Basit bir Pod (nginx)
 
-Dosya: [simple-web.yaml](simple-web.yaml)
+Dosya: [simple-web.yaml](simple-web.yaml). Tüm komutlar repo kök klasöründen çalıştırılır.
 
 ```bash
-kubectl apply -f simple-web.yaml
+kubectl apply -f kubernetes/week-3/pod/simple-web.yaml
 kubectl get pods
 ```
 
@@ -21,28 +21,20 @@ Dosya: [microservice1-pod.yaml](microservice1-pod.yaml)
 
 Pod `ecommerce-dev` namespace'inde çalışır. Namespace, ResourceQuota ve LimitRange henüz yoksa önce [namespace](../namespace/namespace.md) dosyasındaki adımları uygula.
 
-### Adım 1: Dockerfile'ın bulunduğu klasöre git
+### Adım 1: Image'ı build et
 
-Dockerfile'daki `COPY` yolları `Microservice1.API` klasörüne göre yazıldığı için build bu klasörden çalıştırılmalı.
-
-```bash
-cd Microservice1.API
-```
-
-### Adım 2: Image'ı build et
-
-Registry kullanmıyoruz, bu yüzden image adında registry öneki yok. `latest` yerine sabit bir tag (`1.0`) kullan. Böylece Kubernetes varsayılan olarak registry'den çekmeye çalışmaz.
+Dockerfile'daki `COPY` yolları `Microservice1.API` klasörüne göre yazıldığı için build'e bu klasör verilir (`cd` yapmana gerek yok). Registry kullanmıyoruz, bu yüzden image adında registry öneki yok. `latest` yerine sabit bir tag (`1.0`) kullan. Böylece Kubernetes varsayılan olarak registry'den çekmeye çalışmaz.
 
 ```bash
-docker build -t microservice1-api:1.0 .
+docker build -t microservice1-api:1.0 Microservice1.API
 docker images microservice1-api
 ```
 
-### Adım 3: Image'ı kind cluster'ına ulaştır
+### Adım 2: Image'ı kind cluster'ına ulaştır
 
 kind node'ları kendi içinde ayrı bir container runtime kullanır, bu yüzden bilgisayardaki Docker image'ı node'lar otomatik görmez. Cluster tipine göre iki yol var.
 
-**Docker Desktop (kind modu, bu repodaki cluster):** Node'lar Docker'ın containerd image store'unu paylaşır. Ekstra bir şey yapmana gerek yok, Adım 2'de build ettiğin image node'larda hazırdır.
+**Docker Desktop (kind modu, bu repodaki cluster):** Node'lar Docker'ın containerd image store'unu paylaşır. Ekstra bir şey yapmana gerek yok, Adım 1'de build ettiğin image node'larda hazırdır.
 
 **Kendi kurduğun kind cluster'ı (`setup-kind.sh`):** Image'ı node'lara yükle. `egitim` yerine cluster adını yaz (`kind get clusters` ile bakabilirsin).
 
@@ -56,7 +48,7 @@ Image'ın node'da olduğunu kontrol et (isteğe bağlı):
 docker exec egitim-worker crictl images | grep microservice1-api
 ```
 
-### Adım 4: Pod'u oluştur
+### Adım 3: Pod'u oluştur
 
 `imagePullPolicy: IfNotPresent` ayarı sayesinde image node'da varsa registry'ye gidilmez.
 
@@ -64,7 +56,7 @@ docker exec egitim-worker crictl images | grep microservice1-api
 kubectl apply -f kubernetes/week-3/pod/microservice1-pod.yaml
 ```
 
-### Adım 5: Pod'un çalıştığını kontrol et
+### Adım 4: Pod'un çalıştığını kontrol et
 
 `STATUS` sütunu `Running`, `READY` sütunu `1/1` olmalı.
 
@@ -74,9 +66,9 @@ kubectl describe pod microservice1-api -n ecommerce-dev
 kubectl logs microservice1-api -n ecommerce-dev
 ```
 
-`ErrImagePull` veya `ErrImageNeverPull` görürsen image node'da yok demektir, Adım 3'ü tekrar kontrol et.
+`ErrImagePull` veya `ErrImageNeverPull` görürsen image node'da yok demektir, Adım 2'yi tekrar kontrol et.
 
-### Adım 6: Dışarıdan erişim için port-forward aç
+### Adım 5: Dışarıdan erişim için port-forward aç
 
 Pod'a cluster dışından doğrudan erişilemez. `port-forward` yerel `8080` portunu pod'un `8080` portuna yönlendirir. Komut çalıştığı sürece açık kalır, bu yüzden ayrı bir terminalde çalıştır.
 
@@ -86,7 +78,7 @@ kubectl port-forward pod/microservice1-api 8080:8080 -n ecommerce-dev
 
 Yerel port 8080 doluysa farklı bir port seç (örneğin `9090:8080`) ve sonraki adımlarda onu kullan.
 
-### Adım 7: Endpoint'e istek at
+### Adım 6: Endpoint'e istek at
 
 Başka bir terminalde:
 
@@ -105,7 +97,7 @@ Tarayıcıdan da açabilirsin:
 - http://localhost:8080/scalar/v1 (Scalar API dokümantasyonu)
 - http://localhost:8080/openapi/v1.json (OpenAPI şeması)
 
-### Adım 8: Temizle
+### Adım 7: Temizle
 
 Port-forward'u `Ctrl+C` ile durdur, sonra pod'u sil.
 
@@ -149,11 +141,10 @@ Probe'ların görevi:
 
 ### Adım 1: Health check'li yeni image'ı build et
 
-Kod değiştiği için tag'i `1.6` yap. Aynı tag'i yeniden kullanırsan node'daki eski image kullanılabilir (`imagePullPolicy: IfNotPresent`).
+Komutlar repo kök klasöründen çalıştırılır. Kod değiştiği için tag'i `1.6` yap. Aynı tag'i yeniden kullanırsan node'daki eski image kullanılabilir (`imagePullPolicy: IfNotPresent`).
 
 ```bash
-cd Microservice1.API
-docker build -t microservice1-api:1.6 .
+docker build -t microservice1-api:1.6 Microservice1.API
 ```
 
 ### Adım 2: Pod'u oluştur
@@ -164,7 +155,7 @@ kubectl apply -f kubernetes/week-3/pod/microservice1-probe-pod.yaml
 
 ### Adım 3: Probe'ların çalıştığını kontrol et
 
-Pod oluştuktan sonra yaklaşık 20 sn `READY 0/1` kalır (seed data yükleniyor, `startupProbe` henüz başarılı değil). Sonra `1/1` olur, `RESTARTS` sütunu `0` kalır. `describe` çıktısında üç probe'un ayarları görünür.
+Pod oluştuktan sonra yaklaşık 20 sn `READY 0/1` kalır (seed data yükleniyor, `startupProbe` henüz başarılı değil). Sonra `1/1` olur, `RESTARTS` sütunu `0` kalır. `describe` çıktısında üç probe'un ayarları görünür. `-w` canlı izler, `1/1` olunca `Ctrl+C` ile çık.
 
 ```bash
 kubectl get pod microservice1-probe -n ecommerce-dev -w
@@ -191,7 +182,9 @@ curl http://localhost:8080/products
 
 ```json
 {"status":"Healthy","checks":{"database":{"status":"Healthy","description":null}}}
-``` `/products` seed data ile yüklenen 5 ürünü JSON olarak döner.
+```
+
+`/products` seed data ile yüklenen 5 ürünü JSON olarak döner.
 
 ### Adım 5: Probe başarısız olunca ne olduğunu gör (isteğe bağlı)
 

@@ -1,5 +1,7 @@
 # Namespace
 
+Tüm komutlar repo kök klasöründen çalıştırılır.
+
 ## Mevcut namespace'leri listele
 
 ```bash
@@ -17,7 +19,7 @@ kubectl create namespace ecommerce-dev
 `environment` ve `team` label'ları namespace'i filtrelemek ve gruplamak için kullanılır. Dosya: [namespace.yaml](namespace.yaml)
 
 ```bash
-kubectl apply -f namespace.yaml
+kubectl apply -f kubernetes/week-3/namespace/namespace.yaml
 ```
 
 ## Namespace'e kaynak limiti (ResourceQuota) koy
@@ -25,7 +27,7 @@ kubectl apply -f namespace.yaml
 Namespace içindeki toplam kaynak kullanımını sınırlar: compute (CPU/memory), storage, ve nesne sayıları (pod, service, configmap, secret vb.). Dosya: [resourcequota.yaml](resourcequota.yaml)
 
 ```bash
-kubectl apply -f resourcequota.yaml
+kubectl apply -f kubernetes/week-3/namespace/resourcequota.yaml
 ```
 
 > `configmaps` ve `secrets` quota'sı yalnızca adet sınırlar. Her namespace'te Kubernetes'in oluşturduğu `kube-root-ca.crt` ConfigMap'i de bu sayıya dahildir.
@@ -35,7 +37,7 @@ kubectl apply -f resourcequota.yaml
 ResourceQuota toplamı sınırlar, LimitRange ise tek bir container, pod veya PVC için varsayılan, minimum ve maksimum değerleri belirler. Namespace'te CPU/memory quota'sı varsa her container'ın requests/limits değeri olmak zorundadır. LimitRange bu değerleri belirtmeyen container'lara otomatik atar. Dosya: [limitrange.yaml](limitrange.yaml)
 
 ```bash
-kubectl apply -f limitrange.yaml
+kubectl apply -f kubernetes/week-3/namespace/limitrange.yaml
 ```
 
 ## ConfigMap ve Secret sayı limitini test et
