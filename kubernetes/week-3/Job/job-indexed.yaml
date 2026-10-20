@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-indexed
+  namespace: ecommerce-dev
+  labels:
+    job-type: indexed-demo
+spec:
+  # Indexed: her Pod'a 0..completions-1 arasında benzersiz bir numara verilir.
+  # Numara JOB_COMPLETION_INDEX ortam değişkeni olarak container'a girer ve Pod adının sonuna eklenir.
+  # Veriyi parçalara bölüp (partition) her Pod'un kendi parçasını işlemesi için kullanılır.
+  completionMode: Indexed
+  completions: 3
+  parallelism: 3
+
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        job-type: indexed-demo
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: busybox:1.37
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Parca $JOB_COMPLETION_INDEX isleniyor (toplam 3 parca)..."
+              sleep 3
+              echo "Parca $JOB_COMPLETION_INDEX tamamlandi."
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-parallel
+  namespace: ecommerce-dev
+  labels:
+    job-type: parallel-demo
+spec:
+  # Toplam 6 başarılı bitiş gerekir.
+  completions: 6
+
+  # Aynı anda en fazla 3 Pod çalışır. 6 iş 3'erli iki dalgada biter (~ 2 x 5 sn).
+  # parallelism kotadan etkilenir: her Pod requests/limits harcar (bkz. namespace.md).
+  parallelism: 3
+
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        job-type: parallel-demo
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: busybox:1.37
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Is basladi: $(hostname)"
+              sleep 5
+              echo "Is bitti: $(hostname)"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

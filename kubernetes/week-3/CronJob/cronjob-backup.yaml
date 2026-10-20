@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-api
+    job-type: backup
+spec:
+  # Cron formatı: dakika saat gün-ay ay haftanın-günü
+  # Bu örnekte "* * * * *" = her dakika (derste sonucu hemen görmek için).
+  # Gerçek projede: "0 2 * * *" = her gece 02:00, "0 */6 * * *" = 6 saatte bir.
+  schedule: "* * * * *"
+
+  # Zamanlamanın hangi saat dilimine göre yorumlanacağı. Yazılmazsa kube-controller-manager'ın saat dilimi (genelde UTC) kullanılır.
+  timeZone: "Europe/Istanbul"
+
+  # Önceki Job hâlâ çalışırken yeni zaman gelirse ne olsun:
+  #   Allow   : (varsayılan) üst üste çalışmasına izin ver
+  #   Forbid  : yeni çalıştırmayı ATLA (backup, migration gibi çakışmaması gereken işler için)
+  #   Replace : çalışan Job'u sil, yenisini başlat
+  concurrencyPolicy: Forbid
+
+  # Zamanlanan an kaçırılırsa (controller kapalıydı vb.) en geç kaç sn içinde hâlâ başlatılabilir.
+  # Geçerse o çalıştırma "kaçırıldı" sayılır.
+  startingDeadlineSeconds: 60
+
+  # Bitmiş Job'lardan kaç tanesi geçmiş olarak tutulsun. Fazlası otomatik silinir.
+  # (count/jobs.batch kotasını doldurmamak için küçük tutulur.)
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  # true yapılırsa yeni Job oluşturulmaz (CronJob silinmeden duraklatılır). Çalışan Job'lar etkilenmez.
+  suspend: false
+
+  # Her zamanlamada oluşturulacak Job'un şablonu. İçi normal bir Job spec'idir.
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: microservice1-api
+            job-type: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: busybox:1.37
+              # Gerçek projede burada pg_dump / mysqldump / sqlcmd gibi bir araç ve yedeği saklayacak
+              # bir hedef (PersistentVolume, S3, Azure Blob) olur. Bu örnekte sadece simüle edilir.
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  echo "Backup basliyor: $(date '+%Y-%m-%d %H:%M:%S')"
+                  sleep 3
+                  echo "Backup alindi: ecommerce-db-$(date '+%Y%m%d-%H%M%S').bak"
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"

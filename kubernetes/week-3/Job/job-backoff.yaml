@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-backoff
+  namespace: ecommerce-dev
+  labels:
+    job-type: failure-demo
+spec:
+  # Başarısızlık örneği: container her seferinde hata kodu (1) ile çıkar.
+  # backoffLimit: 2 => ilk deneme + 2 yeniden deneme = toplam 3 Pod. Sonra Job "Failed" olur.
+  # Denemeler arasında bekleme süresi katlanarak artar (10 sn, 20 sn, 40 sn ... en fazla 6 dk).
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        job-type: failure-demo
+    spec:
+      # Never: hata olunca container aynı Pod'da yeniden başlatılmaz, YENİ bir Pod oluşturulur.
+      # Böylece her denemenin Pod'u ve log'u ayrı ayrı incelenebilir.
+      # (OnFailure'da ise aynı Pod'un RESTARTS sayısı artar.)
+      restartPolicy: Never
+      containers:
+        - name: failing
+          image: busybox:1.37
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Is basladi, hata olacak..."
+              exit 1
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

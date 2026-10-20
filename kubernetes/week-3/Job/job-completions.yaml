@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-completions
+  namespace: ecommerce-dev
+  labels:
+    job-type: completions-demo
+spec:
+  # completions: Job'un "başarılı" sayılması için başarıyla bitmesi gereken toplam Pod sayısı.
+  completions: 5
+
+  # parallelism: aynı anda çalışabilecek Pod sayısı. 1 olduğu için Pod'lar SIRAYLA çalışır:
+  # biri bitmeden diğeri başlamaz. Toplam süre ~ 5 x 3 sn.
+  parallelism: 1
+
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        job-type: completions-demo
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: busybox:1.37
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Is basladi: $(hostname)"
+              sleep 3
+              echo "Is bitti: $(hostname)"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
