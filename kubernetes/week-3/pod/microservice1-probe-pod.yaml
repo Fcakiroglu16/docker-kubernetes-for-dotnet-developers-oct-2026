@@ -1,36 +1,36 @@
-apiVersion: v1
-kind: Pod
+apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
+kind: Pod                                   # Nesne türü: Pod (Kubernetes'te çalışan en küçük birim)
 metadata:
-  name: microservice1-probe
-  namespace: ecommerce-dev
-  labels:
-    app: microservice1-api
-spec:
-  containers:
-    - name: microservice1-api
-      image: microservice1-api:1.6
-      imagePullPolicy: IfNotPresent
-      ports:
-        - name: http
-          containerPort: 8080
-      env:
+  name: microservice1-probe                 # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
+    app: microservice1-api                  # Uygulamanın adı
+spec:                                       # Pod'un istenen özellikleri (spec)
+  containers:                               # Pod içinde çalışacak container'lar
+    - name: microservice1-api               # Container'ın adı
+      image: microservice1-api:1.6          # Çalıştırılacak image (ad:etiket)
+      imagePullPolicy: IfNotPresent         # IfNotPresent: image node'da varsa registry'ye gitme
+      ports:                                # Container'ın dinlediği portlar (bilgilendirme amaçlı)
+        - name: http                        # Port adı (probe ve Service bu adla başvurabilir)
+          containerPort: 8080               # Container içindeki port numarası
+      env:                                  # Container'a verilecek ortam değişkenleri
         # Uygulama açılışta seed data yüklerken kaç sn bekleyecek (yavaş açılışı taklit eder).
         # startupProbe'un amacı bu süre boyunca container'ı öldürmemek.
-        - name: Startup__SeedDelaySeconds
-          value: "20"
-      resources:
-        requests:
-          cpu: "100m"
-          memory: "128Mi"
-        limits:
-          cpu: "500m"
-          memory: "256Mi"
+        - name: Startup__SeedDelaySeconds   # Ortam değişkeninin adı
+          value: "20"                       # Ortam değişkeninin değeri (string)
+      resources:                            # CPU/memory istek ve limitleri (ResourceQuota ve LimitRange gereği zorunlu)
+        requests:                           # Scheduler'ın Pod için ayıracağı garanti miktar
+          cpu: "100m"                       # 100m = 0.1 çekirdek ayrılır
+          memory: "128Mi"                   # 128Mi bellek ayrılır
+        limits:                             # Container'ın aşamayacağı üst sınır
+          cpu: "500m"                       # 500m = 0.5 çekirdek, aşılırsa yavaşlatılır (throttle)
+          memory: "256Mi"                   # 256Mi, aşılırsa container OOMKilled olur
 
       # Startup: uygulama açılana (seed data yüklenene) kadar liveness/readiness çalışmaz.
       # /health/startup seed bitene kadar 503 döner. Başarılı olunca diğer probe'lar devreye girer.
       # Bütçe = periodSeconds x failureThreshold = 5 x 12 = 60 sn. Gerçek açılış süresinin (burada ~20 sn) 2-3 katı olmalı.
       # Çok kısa olursa uygulama daha açılmadan restart edilir, çok uzun olursa takılan container geç fark edilir.
-      startupProbe:
+      startupProbe:                         # Uygulama açıldı mı kontrolü (bitene kadar diğer probe'lar çalışmaz)
         httpGet:                 # HTTP GET isteği atar; 200-399 arası cevap başarılı sayılır
           path: /health/startup  # İstek atılacak yol
           port: http             # Container portunun adı (yukarıdaki ports.name: http = 8080)
@@ -39,7 +39,7 @@ spec:
 
       # Liveness: başarısız olursa container yeniden başlatılır (restart).
       # Temkinli ayarlanır: yoğun yükte veya GC duraklamasında gereksiz restart olmasın diye timeout cömert, tolerans yüksek tutulur.
-      livenessProbe:
+      livenessProbe:                        # Container hâlâ sağlıklı mı kontrolü (başarısızsa restart edilir)
         httpGet:
           path: /health/live
           port: http
@@ -50,10 +50,10 @@ spec:
 
       # Readiness: başarısız olursa pod Service endpoint'lerinden çıkarılır (trafik almaz), restart edilmez.
       # Restart yapmadığı için daha sık ve hızlı tepki verecek şekilde ayarlanır.
-      readinessProbe:
-        httpGet:
-          path: /health/ready
-          port: http
+      readinessProbe:                       # Pod trafik almaya hazır mı kontrolü (başarısızsa Service'ten çıkar, restart edilmez)
+        httpGet:                            # HTTP GET isteği ile kontrol (200-399 = başarılı)
+          path: /health/ready               # İstek atılacak yol
+          port: http                        # Container port adı (ports.name: http = 8080)
         periodSeconds: 5         # Probe kaç saniyede bir çalışsın (tipik: 5-10 sn)
         timeoutSeconds: 2        # İstek bu sürede cevap vermezse o deneme başarısız sayılır (tipik: 1-3 sn)
         failureThreshold: 3      # Üst üste 3 başarısız denemeden sonra pod "Not Ready" olur ve trafik almaz (restart edilmez)

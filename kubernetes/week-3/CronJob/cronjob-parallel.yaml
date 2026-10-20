@@ -1,0 +1,42 @@
+apiVersion: batch/v1                 # CronJob da "batch" API grubundadır
+kind: CronJob                        # Zamanlanmış olarak Job oluşturan nesne
+metadata:
+  name: cron-parallel                # CronJob'un adı
+  namespace: ecommerce-dev           # CronJob'un oluşturulacağı namespace
+  labels:                            # CronJob nesnesinin label'ları
+    job-type: cron-parallel
+spec:
+  # Her 2 dakikada bir. Her tetiklenmede jobTemplate'ten bir Job oluşur ve o Job 3 Pod'u PARALEL çalıştırır.
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid          # Önceki Job sürüyorsa yeni çalıştırmayı atla
+  successfulJobsHistoryLimit: 2      # Başarılı Job geçmişinden 2 tane sakla
+  failedJobsHistoryLimit: 1          # Başarısız Job geçmişinden 1 tane sakla
+  jobTemplate:                       # Her tetiklenmede oluşturulacak Job'un şablonu
+    spec:
+      # Job'a özgü alanlar (completions, parallelism, completionMode) burada, jobTemplate.spec altında verilir.
+      completionMode: Indexed        # Her Pod'a 0..completions-1 numarası verilir (JOB_COMPLETION_INDEX)
+      completions: 3                 # Toplam 3 başarılı Pod gerekir
+      parallelism: 3                 # Üçü aynı anda çalışır
+      backoffLimit: 1                # Hata olursa en fazla 1 kez yeniden dene
+      template:                      # Job'un oluşturacağı Pod'un şablonu
+        metadata:
+          labels:                    # Pod'lara verilen label'lar (kubectl get pods -l job-type=cron-parallel)
+            job-type: cron-parallel
+        spec:
+          restartPolicy: Never       # Hata olursa container yeniden başlatılmaz (Never ya da OnFailure olmalı)
+          containers:
+            - name: report           # Container'ın adı
+              image: busybox:1.37    # Küçük bir Linux image'ı
+              command: ["/bin/sh", "-c"]   # Shell'i başlatır. -c "sonraki metni script olarak çalıştır" demek
+              args:                  # Çalıştırılacak script
+                - |
+                  echo "Rapor parcasi $JOB_COMPLETION_INDEX uretiliyor..."
+                  sleep 3
+                  echo "Rapor parcasi $JOB_COMPLETION_INDEX hazir."
+              resources:                # LimitRange (min 64Mi/50m) ve ResourceQuota yüzünden zorunlu
+                requests:               # Scheduler bu kadarını ayırır (garanti edilen miktar)
+                  cpu: "100m"           # 0.1 çekirdek
+                  memory: "64Mi"        # LimitRange minimumu 64Mi
+                limits:                 # Container bu değerleri aşamaz
+                  cpu: "200m"           # CPU aşılırsa yavaşlatılır (throttle)
+                  memory: "128Mi"       # Memory aşılırsa container OOMKilled olur

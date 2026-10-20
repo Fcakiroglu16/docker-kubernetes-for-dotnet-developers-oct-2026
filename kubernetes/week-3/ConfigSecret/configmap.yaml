@@ -1,12 +1,12 @@
-apiVersion: v1
-kind: ConfigMap
+apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
+kind: ConfigMap                             # Nesne türü: ConfigMap (gizli olmayan yapılandırma verisi)
 metadata:
-  name: microservice1-config
-  namespace: ecommerce-dev
-  labels:
-    app: microservice1-api
-data:
+  name: microservice1-config                # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
+    app: microservice1-api                  # Uygulamanın adı
+data:                                       # Anahtar=değer verisi
   # Gizli olmayan ayarlar. Değerler her zaman string'dir.
   # .NET'te "App:Mode" ayarı ortam değişkeninde "App__Mode" olarak yazılır (":" yerine "__").
-  App__Mode: "demo"
-  App__MaxItems: "10"
+  App__Mode: "demo"                         # App:Mode ayarı (.NET'te ':' yerine '__')
+  App__MaxItems: "10"                       # App:MaxItems ayarı

@@ -1,37 +1,37 @@
-apiVersion: v1
-kind: Pod
+apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
+kind: Pod                                   # Nesne türü: Pod (Kubernetes'te çalışan en küçük birim)
 metadata:
-  name: microservice1-config-pod
-  namespace: ecommerce-dev
-  labels:
-    app: microservice1-api
-spec:
-  containers:
-    - name: microservice1-api
-      image: microservice1-api:1.7
-      imagePullPolicy: IfNotPresent
-      ports:
-        - name: http
-          containerPort: 8080
+  name: microservice1-config-pod            # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
+    app: microservice1-api                  # Uygulamanın adı
+spec:                                       # Pod'un istenen özellikleri (spec)
+  containers:                               # Pod içinde çalışacak container'lar
+    - name: microservice1-api               # Container'ın adı
+      image: microservice1-api:1.7          # Çalıştırılacak image (ad:etiket)
+      imagePullPolicy: IfNotPresent         # IfNotPresent: image node'da varsa registry'ye gitme
+      ports:                                # Container'ın dinlediği portlar (bilgilendirme amaçlı)
+        - name: http                        # Port adı (probe ve Service bu adla başvurabilir)
+          containerPort: 8080               # Container içindeki port numarası
       # ConfigMap ve Secret'taki tüm anahtarlar ortam değişkeni olur.
       # İkisi aynı anda, ayrı ayrı kaynak olarak verilir.
-      envFrom:
-        - configMapRef:
-            name: microservice1-config
-        - secretRef:
-            name: microservice1-secret
+      envFrom:                              # Bir nesnenin tüm anahtarlarını toplu olarak ortam değişkeni yap
+        - configMapRef:                     # ConfigMap'teki TÜM anahtarları ortam değişkeni yap
+            name: microservice1-config      # ConfigMap'in adı
+        - secretRef:                        # Secret'taki TÜM anahtarları ortam değişkeni yap
+            name: microservice1-secret      # Secret'ın adı
       # Pod'un Ready olması için API'nin açılmış olması beklenir.
-      readinessProbe:
-        httpGet:
-          path: /health/ready
-          port: http
-        periodSeconds: 5
-        timeoutSeconds: 2
-        failureThreshold: 3
-      resources:
-        requests:
-          cpu: "100m"
-          memory: "128Mi"
-        limits:
-          cpu: "500m"
-          memory: "256Mi"
+      readinessProbe:                       # Pod trafik almaya hazır mı kontrolü (başarısızsa Service'ten çıkar, restart edilmez)
+        httpGet:                            # HTTP GET isteği ile kontrol (200-399 = başarılı)
+          path: /health/ready               # İstek atılacak yol
+          port: http                        # Container port adı (ports.name: http = 8080)
+        periodSeconds: 5                    # Kaç saniyede bir kontrol edilsin
+        timeoutSeconds: 2                   # Cevap için beklenecek süre (sn)
+        failureThreshold: 3                 # Üst üste bu kadar başarısızlıkta Pod Not Ready olur
+      resources:                            # CPU/memory istek ve limitleri (ResourceQuota ve LimitRange gereği zorunlu)
+        requests:                           # Scheduler'ın Pod için ayıracağı garanti miktar
+          cpu: "100m"                       # 100m = 0.1 çekirdek ayrılır
+          memory: "128Mi"                   # 128Mi bellek ayrılır
+        limits:                             # Container'ın aşamayacağı üst sınır
+          cpu: "500m"                       # 500m = 0.5 çekirdek, aşılırsa yavaşlatılır (throttle)
+          memory: "256Mi"                   # 256Mi, aşılırsa container OOMKilled olur

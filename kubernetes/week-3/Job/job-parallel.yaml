@@ -1,9 +1,9 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: batch/v1                 # Job, "batch" API grubundadır
+kind: Job                            # Bir kez çalışıp biten iş
 metadata:
-  name: job-parallel
-  namespace: ecommerce-dev
-  labels:
+  name: job-parallel                           # Job'un adı
+  namespace: ecommerce-dev           # Job'un oluşturulacağı namespace
+  labels:                            # Job nesnesinin label'ları
     job-type: parallel-demo
 spec:
   # Toplam 6 başarılı bitiş gerekir.
@@ -13,27 +13,27 @@ spec:
   # parallelism kotadan etkilenir: her Pod requests/limits harcar (bkz. namespace.md).
   parallelism: 3
 
-  backoffLimit: 2
-  ttlSecondsAfterFinished: 600
-  template:
+  backoffLimit: 2                    # Hata olursa en fazla 2 kez yeniden dene (varsayılan 6)
+  ttlSecondsAfterFinished: 600       # Job bittikten 10 dk sonra Job ve Pod'ları otomatik silinir
+  template:                          # Job'un oluşturacağı Pod'un şablonu
     metadata:
-      labels:
+      labels:                        # Pod'lara verilen label'lar (kubectl get pods -l job-type=parallel-demo)
         job-type: parallel-demo
     spec:
-      restartPolicy: Never
+      restartPolicy: Never           # Hata olursa container yeniden başlatılmaz, Job yeni Pod açar (Never ya da OnFailure olmalı)
       containers:
-        - name: worker
-          image: busybox:1.37
-          command: ["/bin/sh", "-c"]
-          args:
+        - name: worker               # Container'ın adı
+          image: busybox:1.37        # Küçük bir Linux image'ı
+          command: ["/bin/sh", "-c"] # Shell'i başlatır. -c "sonraki metni script olarak çalıştır" demek
+          args:                      # Çalıştırılacak script
             - |
               echo "Is basladi: $(hostname)"
               sleep 5
               echo "Is bitti: $(hostname)"
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "64Mi"
-            limits:
-              cpu: "200m"
-              memory: "128Mi"
+          resources:                # LimitRange (min 64Mi/50m) ve ResourceQuota yüzünden zorunlu
+            requests:               # Scheduler bu kadarını ayırır (garanti edilen miktar)
+              cpu: "100m"           # 0.1 çekirdek
+              memory: "64Mi"        # LimitRange minimumu 64Mi
+            limits:                 # Container bu değerleri aşamaz
+              cpu: "200m"           # CPU aşılırsa yavaşlatılır (throttle)
+              memory: "128Mi"       # Memory aşılırsa container OOMKilled olur

@@ -1,11 +1,11 @@
-apiVersion: v1
-kind: ConfigMap
+apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
+kind: ConfigMap                             # Nesne türü: ConfigMap (gizli olmayan yapılandırma verisi)
 metadata:
-  name: app-yaml
-  namespace: ecommerce-dev
-  labels:
-    app: microservice1-api
-data:
+  name: app-yaml                            # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
+    app: microservice1-api                  # Uygulamanın adı
+data:                                       # Anahtar=değer verisi
   # data altındaki her anahtar=değer bir yapılandırma girdisidir. Değerler her zaman string'dir.
-  APP_MODE: "demo"
-  LOG_LEVEL: "Information"
+  APP_MODE: "demo"                          # Uygulama modu
+  LOG_LEVEL: "Information"                  # Log seviyesi

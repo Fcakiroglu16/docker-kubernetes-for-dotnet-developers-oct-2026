@@ -1,15 +1,15 @@
-apiVersion: v1
-kind: ConfigMap
+apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
+kind: ConfigMap                             # Nesne türü: ConfigMap (gizli olmayan yapılandırma verisi)
 metadata:
-  name: app-json
-  namespace: ecommerce-dev
-  labels:
-    app: microservice1-api
-data:
+  name: app-json                            # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
+    app: microservice1-api                  # Uygulamanın adı
+data:                                       # Anahtar=değer verisi
   # Anahtar bir dosya adı, değer ise o dosyanın içeriğidir. "|" işareti sonraki girintili satırları
   # olduğu gibi (çok satırlı string olarak) alır. JSON'u doğrudan yazabilirsin.
   # Kubernetes içeriği doğrulamaz, sadece string olarak saklar; geçerli JSON olması senin sorumluluğundadır.
-  appsettings.Development.json: |
+  appsettings.Development.json: |  # Anahtar = dosya adı, değer = dosyanın içeriği (JSON)
     {
       "AppName": "Microservice1",
       "Logging": {

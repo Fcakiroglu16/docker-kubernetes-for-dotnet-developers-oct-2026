@@ -1,47 +1,47 @@
-apiVersion: v1
-kind: Pod
+apiVersion: v1                              # API sürümü (v1 = çekirdek API grubu)
+kind: Pod                                   # Nesne türü: Pod (Kubernetes'te çalışan en küçük birim)
 metadata:
-  name: cm-volume
-  namespace: ecommerce-dev
-  labels:
-    app: microservice1-api
-spec:
-  containers:
-    - name: microservice1-api
-      image: microservice1-api:1.6
-      imagePullPolicy: IfNotPresent
+  name: cm-volume                           # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # Label'lar: nesneleri gruplamak ve filtrelemek için anahtar=değer çiftleri
+    app: microservice1-api                  # Uygulamanın adı
+spec:                                       # Pod'un istenen özellikleri (spec)
+  containers:                               # Pod içinde çalışacak container'lar
+    - name: microservice1-api               # Container'ın adı
+      image: microservice1-api:1.6          # Çalıştırılacak image (ad:etiket)
+      imagePullPolicy: IfNotPresent         # IfNotPresent: image node'da varsa registry'ye gitme
       # Yol 3: ConfigMap'i dosya olarak container'a bağla (volume)
-      volumeMounts:
+      volumeMounts:                         # Volume'ları container içindeki yollara bağla
         # a) subPath ile tek bir dosya olarak: ConfigMap'teki "appsettings.Production.json" anahtarı
         #    container içinde /app/appsettings.Production.json dosyası olur.
         #    Not: subPath ile bağlanan dosya ConfigMap değişince kendiliğinden güncellenmez.
-        - name: app-file-volume
-          mountPath: /app/appsettings.Production.json
-          subPath: appsettings.Production.json
+        - name: app-file-volume             # Bağlanacak volume'un adı (volumes listesindeki ad)
+          mountPath: /app/appsettings.Production.json  # Container içinde bağlanacağı yol
+          subPath: appsettings.Production.json  # Volume'dan yalnızca bu anahtarı tek dosya olarak bağla
         # b) klasör olarak: ConfigMap'teki her anahtar /etc/app-config altında bir dosya olur.
         #    Bu şekilde bağlanan dosyalar ConfigMap değişince bir süre sonra kendiliğinden güncellenir.
-        - name: app-yaml-volume
-          mountPath: /etc/app-config
-          readOnly: true
+        - name: app-yaml-volume             # Bağlanacak volume'un adı (volumes listesindeki ad)
+          mountPath: /etc/app-config        # Container içinde bağlanacağı yol
+          readOnly: true                    # Salt okunur bağla
         # c) JSON'u YAML içine yazdığımız ConfigMap (app-json) klasör olarak bağlanır:
         #    /etc/app-json/appsettings.Development.json dosyası oluşur.
-        - name: app-json-volume
-          mountPath: /etc/app-json
-          readOnly: true
-      resources:
-        requests:
-          cpu: "100m"
-          memory: "128Mi"
-        limits:
-          cpu: "500m"
-          memory: "256Mi
-  volumes:
-    - name: app-file-volume
-      configMap:
-        name: app-file
-    - name: app-yaml-volume
-      configMap:
-        name: app-yaml
-    - name: app-json-volume
-      configMap:
-        name: app-json
+        - name: app-json-volume             # Bağlanacak volume'un adı (volumes listesindeki ad)
+          mountPath: /etc/app-json          # Container içinde bağlanacağı yol
+          readOnly: true                    # Salt okunur bağla
+      resources:                            # CPU/memory istek ve limitleri (ResourceQuota ve LimitRange gereği zorunlu)
+        requests:                           # Scheduler'ın Pod için ayıracağı garanti miktar
+          cpu: "100m"                       # 100m = 0.1 çekirdek ayrılır
+          memory: "128Mi"                   # 128Mi bellek ayrılır
+        limits:                             # Container'ın aşamayacağı üst sınır
+          cpu: "500m"                       # 500m = 0.5 çekirdek, aşılırsa yavaşlatılır (throttle)
+          memory: "256Mi"                   # 256Mi, aşılırsa container OOMKilled olur
+  volumes:                                  # Pod'a bağlanabilecek volume tanımları
+    - name: app-file-volume                 # Volume'un adı (volumeMounts bu adla başvurur)
+      configMap:                            # Kaynağı bir ConfigMap olan volume
+        name: app-file                      # Kaynak ConfigMap'in adı
+    - name: app-yaml-volume                 # Volume'un adı (volumeMounts bu adla başvurur)
+      configMap:                            # Kaynağı bir ConfigMap olan volume
+        name: app-yaml                      # Kaynak ConfigMap'in adı
+    - name: app-json-volume                 # Volume'un adı (volumeMounts bu adla başvurur)
+      configMap:                            # Kaynağı bir ConfigMap olan volume
+        name: app-json                      # Kaynak ConfigMap'in adı

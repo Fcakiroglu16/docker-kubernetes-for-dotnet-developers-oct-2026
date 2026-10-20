@@ -1,9 +1,9 @@
-apiVersion: batch/v1
-kind: CronJob
+apiVersion: batch/v1                 # CronJob da "batch" API grubundadır
+kind: CronJob                        # Zamanlanmış olarak Job oluşturan nesne
 metadata:
-  name: db-backup
-  namespace: ecommerce-dev
-  labels:
+  name: db-backup                    # CronJob'un adı. Oluşan Job'lar db-backup-<zaman damgası> adını alır
+  namespace: ecommerce-dev           # CronJob'un oluşturulacağı namespace
+  labels:                            # CronJob nesnesinin label'ları
     app: microservice1-api
     job-type: backup
 spec:
@@ -13,6 +13,7 @@ spec:
   schedule: "* * * * *"
 
   # Zamanlamanın hangi saat dilimine göre yorumlanacağı. Yazılmazsa kube-controller-manager'ın saat dilimi (genelde UTC) kullanılır.
+  # Dikkat: sadece TETİKLENME zamanını etkiler, container içindeki date komutu yine UTC gösterir.
   timeZone: "Europe/Istanbul"
 
   # Önceki Job hâlâ çalışırken yeni zaman gelirse ne olsun:
@@ -27,39 +28,39 @@ spec:
 
   # Bitmiş Job'lardan kaç tanesi geçmiş olarak tutulsun. Fazlası otomatik silinir.
   # (count/jobs.batch kotasını doldurmamak için küçük tutulur.)
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 3      # Başarılı Job geçmişi
+  failedJobsHistoryLimit: 1          # Başarısız Job geçmişi (hatayı incelemek için en az 1 bırak)
 
   # true yapılırsa yeni Job oluşturulmaz (CronJob silinmeden duraklatılır). Çalışan Job'lar etkilenmez.
   suspend: false
 
-  # Her zamanlamada oluşturulacak Job'un şablonu. İçi normal bir Job spec'idir.
+  # Her zamanlamada oluşturulacak Job'un şablonu. İçi normal bir Job spec'idir (bkz. Job/job.md).
   jobTemplate:
     spec:
-      backoffLimit: 2
-      activeDeadlineSeconds: 120
-      template:
+      backoffLimit: 2                # Hata olursa en fazla 2 kez yeniden dene
+      activeDeadlineSeconds: 120     # Bir Job 120 sn'den uzun sürerse zorla durdurulur
+      template:                      # Job'un oluşturacağı Pod'un şablonu
         metadata:
-          labels:
+          labels:                    # Pod'lara verilen label'lar (kubectl get pods -l job-type=backup)
             app: microservice1-api
             job-type: backup
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: OnFailure   # Hata olursa container aynı Pod içinde yeniden başlatılır (Never ya da OnFailure olmalı)
           containers:
-            - name: backup
-              image: busybox:1.37
+            - name: backup           # Container'ın adı
+              image: busybox:1.37    # Küçük bir Linux image'ı. Gerçek projede pg_dump/sqlcmd gibi araç içeren image olur
               # Gerçek projede burada pg_dump / mysqldump / sqlcmd gibi bir araç ve yedeği saklayacak
               # bir hedef (PersistentVolume, S3, Azure Blob) olur. Bu örnekte sadece simüle edilir.
-              command: ["/bin/sh", "-c"]
-              args:
+              command: ["/bin/sh", "-c"]   # Shell'i başlatır. -c "sonraki metni script olarak çalıştır" demek
+              args:                  # Çalıştırılacak script
                 - |
                   echo "Backup basliyor: $(date '+%Y-%m-%d %H:%M:%S')"
                   sleep 3
                   echo "Backup alindi: ecommerce-db-$(date '+%Y%m%d-%H%M%S').bak"
-              resources:
-                requests:
-                  cpu: "100m"
-                  memory: "64Mi"
-                limits:
-                  cpu: "200m"
-                  memory: "128Mi"
+              resources:                # LimitRange (min 64Mi/50m) ve ResourceQuota yüzünden zorunlu
+                requests:               # Scheduler bu kadarını ayırır (garanti edilen miktar)
+                  cpu: "100m"           # 0.1 çekirdek
+                  memory: "64Mi"        # LimitRange minimumu 64Mi
+                limits:                 # Container bu değerleri aşamaz
+                  cpu: "200m"           # CPU aşılırsa yavaşlatılır (throttle)
+                  memory: "128Mi"       # Memory aşılırsa container OOMKilled olur
