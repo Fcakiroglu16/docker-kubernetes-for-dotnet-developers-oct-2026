@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: microservice1-probe
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-api
+spec:
+  containers:
+    - name: microservice1-api
+      image: microservice1-api:1.6
+      imagePullPolicy: IfNotPresent
+      ports:
+        - name: http
+          containerPort: 8080
+      env:
+        # Uygulama açılışta seed data yüklerken kaç sn bekleyecek (yavaş açılışı taklit eder).
+        # startupProbe'un amacı bu süre boyunca container'ı öldürmemek.
+        - name: Startup__SeedDelaySeconds
+          value: "20"
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "256Mi"
+
+      # Startup: uygulama açılana (seed data yüklenene) kadar liveness/readiness çalışmaz.
+      # /health/startup seed bitene kadar 503 döner. Başarılı olunca diğer probe'lar devreye girer.
+      # En fazla 30 x 2 = 60 sn açılış süresi tanır.
+      startupProbe:
+        httpGet:                 # HTTP GET isteği atar; 200-399 arası cevap başarılı sayılır
+          path: /health/startup  # İstek atılacak yol
+          port: http             # Container portunun adı (yukarıdaki ports.name: http = 8080)
+        periodSeconds: 2         # Probe kaç saniyede bir çalışsın
+        failureThreshold: 30     # En fazla 30 başarısız deneme; 30 x 2 = 60 sn içinde başarılı olmazsa container restart edilir
+
+      # Liveness: başarısız olursa container yeniden başlatılır (restart).
+      livenessProbe:
+        httpGet:
+          path: /health/live
+          port: http
+        initialDelaySeconds: 0   # Container başladıktan sonra ilk probe'dan önce beklenecek süre (sn). startupProbe olduğu için 0 yeterli
+        periodSeconds: 10        # Probe kaç saniyede bir çalışsın
+        timeoutSeconds: 2        # İstek bu sürede cevap vermezse o deneme başarısız sayılır
+        failureThreshold: 3      # Üst üste 3 başarısız denemeden sonra container restart edilir (yaklaşık 3 x 10 = 30 sn)
+
+      # Readiness: başarısız olursa pod Service endpoint'lerinden çıkarılır (trafik almaz), restart edilmez.
+      readinessProbe:
+        httpGet:
+          path: /health/ready
+          port: http
+        periodSeconds: 5         # Probe kaç saniyede bir çalışsın
+        timeoutSeconds: 2        # İstek bu sürede cevap vermezse o deneme başarısız sayılır
+        failureThreshold: 3      # Üst üste 3 başarısız denemeden sonra pod "Not Ready" olur ve trafik almaz (restart edilmez)
+        successThreshold: 1      # Not Ready durumundan çıkmak için gereken ardışık başarılı deneme sayısı
