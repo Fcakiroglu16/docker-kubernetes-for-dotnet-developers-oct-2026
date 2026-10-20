@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cm-envfrom
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-api
+spec:
+  containers:
+    - name: microservice1-api
+      image: microservice1-api:1.6
+      imagePullPolicy: IfNotPresent
+      # Yol 2: ConfigMap'in tüm anahtarlarını ortam değişkeni yap
+      envFrom:
+        - configMapRef:
+            name: app-yaml
+          # prefix: CFG_   # istenirse tüm değişken adlarının başına önek eklenir
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "256Mi"

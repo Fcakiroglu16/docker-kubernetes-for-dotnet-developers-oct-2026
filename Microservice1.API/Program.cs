@@ -83,6 +83,18 @@ app.MapGet("/weatherforecast", () =>
     })
     .WithName("GetWeatherForecast");
 
+// ConfigMap ve Secret'tan ortam değişkeni olarak gelen değerler IConfiguration'a otomatik girer
+// ("App__Mode" ortam değişkeni -> "App:Mode" ayarı).
+// ConfigMap değerleri olduğu gibi döner. Secret'ın değeri asla döndürülmez, sadece tanımlı olup olmadığı ve uzunluğu görünür.
+app.MapGet("/config", (IConfiguration config) => new
+{
+    Mode = config["App:Mode"],
+    MaxItems = config.GetValue<int?>("App:MaxItems"),
+    DbUserSet = !string.IsNullOrEmpty(config["Database:User"]),
+    DbPasswordSet = !string.IsNullOrEmpty(config["Database:Password"]),
+    DbPasswordLength = config["Database:Password"]?.Length ?? 0
+}).WithName("GetConfig");
+
 app.MapGet("/products", async (AppDbContext db) => await db.Products.AsNoTracking().ToListAsync())
     .WithName("GetProducts");
 

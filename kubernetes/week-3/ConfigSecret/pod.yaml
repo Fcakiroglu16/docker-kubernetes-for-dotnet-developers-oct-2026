@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: microservice1-config-pod
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-api
+spec:
+  containers:
+    - name: microservice1-api
+      image: microservice1-api:1.7
+      imagePullPolicy: IfNotPresent
+      ports:
+        - name: http
+          containerPort: 8080
+      # ConfigMap ve Secret'taki tüm anahtarlar ortam değişkeni olur.
+      # İkisi aynı anda, ayrı ayrı kaynak olarak verilir.
+      envFrom:
+        - configMapRef:
+            name: microservice1-config
+        - secretRef:
+            name: microservice1-secret
+      # Pod'un Ready olması için API'nin açılmış olması beklenir.
+      readinessProbe:
+        httpGet:
+          path: /health/ready
+          port: http
+        periodSeconds: 5
+        timeoutSeconds: 2
+        failureThreshold: 3
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "256Mi"

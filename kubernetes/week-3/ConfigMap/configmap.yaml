@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-yaml
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-api
+data:
+  # data altındaki her anahtar=değer bir yapılandırma girdisidir. Değerler her zaman string'dir.
+  APP_MODE: "demo"
+  LOG_LEVEL: "Information"

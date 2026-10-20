@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: microservice1-config
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-api
+data:
+  # Gizli olmayan ayarlar. Değerler her zaman string'dir.
+  # .NET'te "App:Mode" ayarı ortam değişkeninde "App__Mode" olarak yazılır (":" yerine "__").
+  App__Mode: "demo"
+  App__MaxItems: "10"

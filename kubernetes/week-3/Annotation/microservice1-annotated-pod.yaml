@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: microservice1-annotated
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-api
+    tier: backend
+  # Annotation'lar da anahtar=değer çiftleridir, ama nesneleri seçmek için değil, bilgi taşımak için kullanılır.
+  # Değerler her zaman string olmalıdır (sayı ve true/false bile tırnak içinde yazılır).
+  # Anahtarlarda "alan-adı/anahtar" biçimi yaygındır; çakışmayı önler.
+  annotations:
+    ecommerce.io/owner: "ecommerce-team@example.com"
+    ecommerce.io/description: "Ürün ve hava durumu bilgisini sunan API"
+    ecommerce.io/git-commit: "a1b2c3d"
+    ecommerce.io/build-url: "https://ci.example.com/builds/1234"
+spec:
+  containers:
+    - name: microservice1-api
+      image: microservice1-api:1.6
+      imagePullPolicy: IfNotPresent
+      ports:
+        - name: http
+          containerPort: 8080
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "256Mi"
