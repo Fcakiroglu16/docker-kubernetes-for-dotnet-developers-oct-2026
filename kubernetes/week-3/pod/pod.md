@@ -129,7 +129,17 @@ API, EF Core InMemory (bellek içi veritabanı) kullanır. Uygulama açılırken
 
 `/health/ready` içindeki `database` check'i, `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore` paketinin hazır `AddDbContextCheck<AppDbContext>` check'idir. `DbContext` ile veritabanına bağlanılabildiğini (`CanConnectAsync`) kontrol eder. Bağımlılık check'leri bilerek yalnızca readiness'a eklendi. `/health/live` yalnızca "live" etiketli `self` check'ini çalıştırır. Veritabanı çökünce pod'lar restart edilmesin, sadece trafikten çıksın diye.
 
-Üç probe'un görevi:
+Üç probe'un görevi ve mikroservis dünyasında yaygın kullanılan değerler:
+
+| Probe | periodSeconds | timeoutSeconds | failureThreshold | Bu pod'daki bütçe |
+|---|---|---|---|---|
+| `startupProbe` | 5 | 1-3 | açılış süresinin 2-3 katını karşılayacak kadar (12) | 5 x 12 = 60 sn |
+| `livenessProbe` | 10 | 1-3 | 3 | 3 x 10 = 30 sn sonra restart |
+| `readinessProbe` | 5-10 | 1-3 | 3 | 3 x 5 = 15 sn sonra trafikten çıkar |
+
+Kurallar: Liveness readiness'tan seyrek ve toleranslı olmalı, çünkü yanlış alarm container'ı gereksiz yere restart eder. Readiness hızlı tepki vermeli, çünkü sadece trafiği keser. `startupProbe` bütçesi uygulamanın en yavaş açılış süresinden büyük olmalı. `initialDelaySeconds` yerine `startupProbe` kullanılır.
+
+Probe'ların görevi:
 
 | Probe | Başarısız olursa ne olur |
 |---|---|
@@ -185,7 +195,7 @@ curl http://localhost:8080/products
 
 ### Adım 5: Probe başarısız olunca ne olduğunu gör (isteğe bağlı)
 
-**startupProbe:** `microservice1-probe-pod.yaml` içinde `Startup__SeedDelaySeconds` değerini `"90"` yap (startup bütçesi 30 x 2 = 60 sn). Pod'u silip yeniden oluşturunca `startupProbe` süresi dolar, container `failed startup probe, will be restarted` olayıyla sürekli yeniden başlatılır. Çözüm `failureThreshold` değerini büyütmektir.
+**startupProbe:** `microservice1-probe-pod.yaml` içinde `Startup__SeedDelaySeconds` değerini `"90"` yap (startup bütçesi 12 x 5 = 60 sn). Pod'u silip yeniden oluşturunca `startupProbe` süresi dolar, container `failed startup probe, will be restarted` olayıyla sürekli yeniden başlatılır. Çözüm `failureThreshold` değerini büyütmektir.
 
 **readiness ve liveness:** `microservice1-probe-pod.yaml` içinde `livenessProbe` veya `readinessProbe` altındaki `path` değerini var olmayan bir yola (örneğin `/health/yok`) değiştirip pod'u silip yeniden oluştur.
 
