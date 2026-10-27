@@ -1,0 +1,56 @@
+apiVersion: apps/v1                         # API sürümü (ReplicaSet "apps" API grubundadır)
+kind: ReplicaSet                            # Nesne türü: ReplicaSet (HPA bu nesnenin replika sayısını değiştirir)
+metadata:
+  name: microservice1-hpa-rs                # Nesnenin adı. week-4/ReplicaSet örneğinden ayrı olması için farklı ad ve label kullanıldı
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:
+    app: microservice1-hpa
+spec:
+  # replicas BİLEREK yazılmadı. HPA replika sayısını kendisi yönetir.
+  # Burada sabit bir sayı olursa her "kubectl apply" HPA'nın ayarladığı sayıyı ezer ve ölçekleme bozulur.
+  # Yazılmayınca varsayılan 1 ile başlar, HPA hemen minReplicas'a (2) çıkarır.
+  selector:                                 # ReplicaSet hangi Pod'ları sahipleniyor?
+    matchLabels:
+      app: microservice1-hpa                # template.metadata.labels ile aynı olmalı
+  template:                                 # Pod şablonu
+    metadata:
+      labels:
+        app: microservice1-hpa
+    spec:
+      containers:
+        - name: microservice1-api
+          image: microservice1-api:1.0      # Önceki haftalarda build edilen image
+          imagePullPolicy: IfNotPresent     # Image node'da varsa registry'ye gitme
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Startup__SeedDelaySeconds   # Açılışta seed data için beklenecek süre (sn)
+              value: "10"
+          resources:                        # HPA'nın çalışması için requests ZORUNLUDUR
+            requests:                       # HPA yüzdeyi buna göre hesaplar: kullanım / requests.cpu
+              cpu: "100m"                   # 100m istek. %50 hedef = Pod başına 50m kullanım
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          startupProbe:                     # Uygulama açılana kadar diğer probe'lar çalışmaz
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:                   # Hazır olmayan Pod HPA'nın CPU ortalamasına katılmaz
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
