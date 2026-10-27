@@ -1,0 +1,59 @@
+apiVersion: apps/v1                         # API sürümü (ReplicaSet "apps" API grubundadır)
+kind: ReplicaSet                            # Nesne türü: ReplicaSet (belirtilen sayıda Pod'un hep ayakta kalmasını sağlar)
+metadata:
+  name: microservice1-rs                    # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # ReplicaSet nesnesinin kendi label'ları
+    app: microservice1-api
+spec:                                       # ReplicaSet'in istenen özellikleri (spec)
+  replicas: 4                               # Her zaman çalışması istenen Pod sayısı (eksilirse yenisi açılır, fazlaysa silinir)
+  selector:                                 # ReplicaSet hangi Pod'ları sahipleniyor? (zorunlu)
+    matchLabels:                            # Bu label'lara sahip Pod'lar bu ReplicaSet'e aittir
+      app: microservice1-api                # template.metadata.labels içinde de AYNEN bulunmak zorunda
+  template:                                 # Eksik Pod'u oluştururken kullanılacak Pod şablonu
+    metadata:
+      labels:                               # Pod'lara verilen label'lar (selector ile eşleşmeli)
+        app: microservice1-api              # selector.matchLabels ile aynı
+        tier: backend                       # Ek label (selector'a dahil değil, serbest)
+    spec:                                   # Pod'un istenen özellikleri (Pod YAML'ındaki spec ile aynı)
+      containers:                           # Pod içinde çalışacak container'lar
+        - name: microservice1-api           # Container'ın adı
+          image: microservice1-api:1.0      # Çalıştırılacak image (ad:etiket)
+          imagePullPolicy: IfNotPresent     # IfNotPresent: image node'da varsa registry'ye gitme
+          ports:                            # Container'ın dinlediği portlar (bilgilendirme amaçlı)
+            - name: http                    # Port adı (probe bu adla başvurur)
+              containerPort: 8080           # Container içindeki port numarası
+          env:                              # Container'a verilecek ortam değişkenleri
+            - name: Startup__SeedDelaySeconds   # Açılışta seed data için beklenecek süre (sn)
+              value: "10"                   # Değer (string). startupProbe bu süre boyunca container'ı öldürmez
+            - name: POD_NAME                # Hangi Pod'un cevap verdiğini görmek için Pod adı
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name  # Pod'un kendi adı (downward API)
+          resources:                        # CPU/memory istek ve limitleri (ResourceQuota ve LimitRange gereği zorunlu)
+            requests:                       # Scheduler'ın Pod için ayıracağı garanti miktar
+              cpu: "100m"                   # 100m = 0.1 çekirdek
+              memory: "128Mi"               # 128Mi bellek
+            limits:                         # Container'ın aşamayacağı üst sınır
+              cpu: "500m"                   # 500m = 0.5 çekirdek, aşılırsa yavaşlatılır (throttle)
+              memory: "256Mi"               # 256Mi, aşılırsa container OOMKilled olur
+          startupProbe:                     # Uygulama açıldı mı? (bitene kadar liveness/readiness çalışmaz)
+            httpGet:
+              path: /health/startup         # Seed bitene kadar 503 döner
+              port: http
+            periodSeconds: 5                # 5 sn'de bir dene
+            failureThreshold: 12            # 12 x 5 = 60 sn içinde açılmazsa container restart edilir
+          livenessProbe:                    # Container hâlâ sağlıklı mı? (başarısızsa restart edilir)
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:                   # Pod trafik almaya hazır mı? (başarısızsa Service'ten çıkar, restart edilmez)
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
