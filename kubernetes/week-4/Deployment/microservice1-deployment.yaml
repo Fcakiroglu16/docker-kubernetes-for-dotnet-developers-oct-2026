@@ -1,0 +1,62 @@
+apiVersion: apps/v1                         # API sürümü (Deployment "apps" API grubundadır)
+kind: Deployment                            # Nesne türü: Deployment (ReplicaSet'i yönetir, rolling update ve rollback sağlar)
+metadata:
+  name: microservice1-deploy                # Nesnenin adı (namespace içinde benzersiz olmalı)
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:                                   # Deployment nesnesinin kendi label'ları
+    app: microservice1-deploy
+spec:                                       # Deployment'ın istenen özellikleri (spec)
+  replicas: 4                               # Her zaman çalışması istenen Pod sayısı
+  revisionHistoryLimit: 5                   # Rollback için saklanan eski ReplicaSet sayısı (varsayılan 10)
+  minReadySeconds: 5                        # Yeni Pod Ready olduktan sonra en az 5 sn sorunsuz kalmadan "hazır" sayılmaz
+  progressDeadlineSeconds: 60               # Rollout 60 sn'de ilerlemezse "başarısız" işaretlenir (varsayılan 600). Eğitimde hatayı hızlı görmek için kısaltıldı
+  selector:                                 # Deployment hangi Pod'ları yönetiyor? (oluşturulduktan sonra değiştirilemez)
+    matchLabels:
+      app: microservice1-deploy             # template.metadata.labels içinde de AYNEN bulunmak zorunda
+  strategy:                                 # Güncelleme stratejisi
+    type: RollingUpdate                     # RollingUpdate: Pod'ları kademeli değiştirir, kesinti olmaz (varsayılan). Diğeri: Recreate
+    rollingUpdate:
+      maxSurge: 1                           # Güncelleme sırasında istenen sayının üstüne en fazla 1 Pod açılabilir (4 -> en fazla 5)
+      maxUnavailable: 0                     # Güncelleme sırasında hazır Pod sayısı hiçbir an 4'ün altına inmez
+  template:                                 # Pod şablonu. Bu bölümdeki HER değişiklik yeni bir rollout (yeni ReplicaSet) başlatır
+    metadata:
+      labels:
+        app: microservice1-deploy           # selector.matchLabels ile aynı
+    spec:
+      containers:
+        - name: microservice1-api           # Container'ın adı (kubectl set image bu adı kullanır)
+          image: microservice1-api:1.0      # Çalıştırılacak image. Tag değişince rollout başlar
+          imagePullPolicy: IfNotPresent     # Image node'da varsa registry'ye gitme
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Startup__SeedDelaySeconds   # Açılışta seed data için beklenecek süre (sn)
+              value: "10"
+          resources:                        # ResourceQuota ve LimitRange gereği zorunlu
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          startupProbe:                     # Uygulama açılana kadar diğer probe'lar çalışmaz
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:                    # Başarısızsa container restart edilir
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:                   # Rolling update'in ilerlemesi buna bağlıdır: yeni Pod Ready olmadan eskisi silinmez
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
