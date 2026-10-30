@@ -1,0 +1,17 @@
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: external-redis-1
+  namespace: ecommerce-dev
+  labels:
+    kubernetes.io/service-name: external-redis   # Hangi Service'e ait olduğunu bu label belirler
+addressType: IPv4
+ports:
+  - name: redis                             # Service'teki port adıyla aynı olmalı
+    port: 6379                              # Hedefteki gerçek port
+    protocol: TCP
+endpoints:
+  - addresses:
+      - "REPLACE_WITH_IP"                   # Hedef sunucunun IP'si (docs'taki komut Pod IP'si ile doldurur)
+    conditions:
+      ready: true

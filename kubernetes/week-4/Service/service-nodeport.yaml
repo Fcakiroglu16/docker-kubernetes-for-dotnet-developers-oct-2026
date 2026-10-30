@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservice1-nodeport
+  namespace: ecommerce-dev
+spec:
+  type: NodePort                            # ClusterIP'ye ek olarak HER node'da bir port açar (30000-32767 arası)
+  selector:
+    app: microservice1-backend
+  ports:
+    - name: http
+      port: 80                              # ClusterIP portu (cluster içinden)
+      targetPort: http                      # Pod portu
+      nodePort: 30080                       # Node portu: <node-ip>:30080. Yazılmazsa 30000-32767 arasından otomatik atanır

@@ -1,0 +1,14 @@
+apiVersion: v1                              # API sürümü
+kind: Service                               # Nesne türü: Service
+metadata:
+  name: bluegreen-svc                       # Kullanıcıların/istemcilerin bağlandığı CANLI adres. Geçiş sırasında adres değişmez
+  namespace: ecommerce-dev
+spec:
+  type: ClusterIP
+  selector:
+    app: bluegreen-api
+    version: blue                           # TRAFİĞİN HANGİ ORTAMA GİTTİĞİNİ BU SATIR BELİRLER. Geçiş: blue -> green
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

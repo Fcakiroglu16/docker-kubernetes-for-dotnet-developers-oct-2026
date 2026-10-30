@@ -1,0 +1,14 @@
+apiVersion: v1                              # API sürümü (Service çekirdek API grubundadır)
+kind: Service                               # Nesne türü: Service (Pod'lara sabit adres ve yük dağıtımı sağlar)
+metadata:
+  name: microservice1-svc                   # Cluster içinde DNS adı olur: microservice1-svc
+  namespace: ecommerce-dev
+spec:
+  type: ClusterIP                           # Varsayılan tip. Yalnızca cluster İÇİNDEN erişilir
+  selector:                                 # Trafik hangi Pod'lara gitsin? Bu label'lara sahip ve Ready olan Pod'lara
+    app: microservice1-backend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80                              # Service'in dinlediği port (istemci bu porta bağlanır)
+      targetPort: http                      # Pod'daki port: ad (http) veya numara (8080) yazılabilir

@@ -1,0 +1,53 @@
+apiVersion: apps/v1                         # API sürümü
+kind: Deployment                            # Nesne türü: Deployment
+metadata:
+  name: app-green                              # Her renk ayrı bir Deployment'tır
+  namespace: ecommerce-dev
+  labels:
+    app: bluegreen-api
+    version: green
+spec:
+  replicas: 3                               # İki ortam da aynı kapasitede çalışır
+  selector:
+    matchLabels:
+      app: bluegreen-api
+      version: green                           # Deployment'ı diğer renkten ayıran label
+  template:
+    metadata:
+      labels:
+        app: bluegreen-api                  # Uygulamanın adı (iki renkte de aynı)
+        version: green                         # Service'in selector'ı bu label ile trafiği green ortamına yönlendirir
+    spec:
+      containers:
+        - name: microservice1-api
+          image: microservice1-api:1.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Startup__SeedDelaySeconds
+              value: "10"
+            # Yeni sürüm: 1.1 (docker tag ile 1.0'dan türetilir, içerik aynı ama Kubernetes için farklı bir sürümdür)
+            - name: App__Mode
+              value: "green"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:                   # Geçişten önce yeni ortamın tamamen Ready olduğunu bu probe garanti eder
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3

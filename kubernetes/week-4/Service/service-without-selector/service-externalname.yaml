@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache
+  namespace: ecommerce-dev
+spec:
+  type: ExternalName                        # Endpoint ve ClusterIP yok. DNS sorgusuna CNAME döner
+  externalName: external-redis.ecommerce-dev.svc.cluster.local   # Gerçekte cluster dışı bir ad olur (örneğin mydb.example.com)

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: external-redis                      # "Cluster dışındaki" sistemi taklit eder. Bu Pod'a hiçbir Service selector ile bağlanmaz
+  namespace: ecommerce-dev
+  labels:
+    app: external-redis-demo                # Aşağıdaki Service'in selector'ı YOK, bu label'a bakan kimse yok
+spec:
+  containers:
+    - name: redis
+      image: redis:7-alpine
+      ports:
+        - name: redis
+          containerPort: 6379
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"

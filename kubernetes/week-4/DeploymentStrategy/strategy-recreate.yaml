@@ -1,0 +1,49 @@
+apiVersion: apps/v1                         # API sürümü
+kind: Deployment                            # Nesne türü: Deployment
+metadata:
+  name: strategy-recreate
+  namespace: ecommerce-dev
+  labels:
+    app: strategy-recreate
+spec:
+  replicas: 4                               # Stratejiler 4 Pod üzerinden karşılaştırılır
+  selector:
+    matchLabels:
+      app: strategy-recreate
+  strategy:
+    type: Recreate                          # Önce TÜM eski Pod'lar silinir, sonra yenileri açılır. rollingUpdate alanı yazılamaz
+  template:
+    metadata:
+      labels:
+        app: strategy-recreate
+    spec:
+      containers:
+        - name: microservice1-api           # kubectl set image bu adı kullanır
+          image: microservice1-api:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Startup__SeedDelaySeconds   # Açılışta 10 sn bekler, yeni Pod'un Ready olması zaman alır
+              value: "10"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3

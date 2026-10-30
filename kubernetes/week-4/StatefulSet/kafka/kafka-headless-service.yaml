@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: ecommerce-dev
+  labels:
+    app: kafka
+spec:
+  clusterIP: None                           # Headless: her broker'a kafka-N.kafka-headless... adıyla ulaşılır
+  publishNotReadyAddresses: true            # Ready olmayan Pod'lar da DNS'e girer. Broker'lar açılışta birbirini bulmalı (controller quorum),
+                                            # yoksa hiçbiri Ready olamaz ve DNS hiçbir zaman dolmaz (tavuk-yumurta)
+  selector:
+    app: kafka
+  ports:
+    - name: broker                          # İstemci ve broker'lar arası trafik
+      port: 9092
+      targetPort: broker
+    - name: controller                      # KRaft controller quorum trafiği
+      port: 9093
+      targetPort: controller

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: ecommerce-dev
+  labels:
+    app: redis
+spec:
+  clusterIP: None                           # Headless: sanal IP yok. DNS, Ready Pod'ların IP'lerini döndürür
+  selector:
+    app: redis                              # StatefulSet Pod'larının label'ı
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+# StatefulSet'teki serviceName: redis-headless alanı bu Service'e bağlanır.
+# Sonuç: her Pod'un kalıcı bir DNS adı olur -> redis-0.redis-headless.ecommerce-dev.svc.cluster.local

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-client                        # redis-cli ve nslookup denemek için istemci Pod
+  namespace: ecommerce-dev
+spec:
+  containers:
+    - name: client
+      image: redis:7-alpine                 # redis-cli içerir, nslookup için busybox araçları da var
+      command: ["sleep", "3600"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"

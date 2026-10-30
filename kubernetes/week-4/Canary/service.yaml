@@ -1,0 +1,15 @@
+apiVersion: v1                              # API sürümü
+kind: Service                               # Nesne türü: Service
+metadata:
+  name: canary-svc
+  namespace: ecommerce-dev
+spec:
+  type: ClusterIP
+  selector:
+    app: canary-api                         # Yalnızca app label'ı: stable VE canary Pod'larının ikisini de seçer
+                                            # (track label'ı bilerek yazılmadı). Trafik Pod başına eşit dağıldığı için
+                                            # canary payı = canary Pod sayısı / toplam Pod sayısı
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

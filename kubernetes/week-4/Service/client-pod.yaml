@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client                              # Cluster içinden Service'leri denemek için istemci Pod
+  namespace: ecommerce-dev
+spec:
+  containers:
+    - name: client
+      image: busybox:1.37                   # wget ve nslookup içerir
+      command: ["sleep", "3600"]            # 1 saat açık kalır, kubectl exec ile komut çalıştırılır
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"

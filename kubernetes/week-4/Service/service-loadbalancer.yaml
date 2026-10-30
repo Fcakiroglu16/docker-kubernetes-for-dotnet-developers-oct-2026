@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservice1-lb
+  namespace: ecommerce-dev
+spec:
+  type: LoadBalancer                        # NodePort'a ek olarak bulut sağlayıcıdan bir dış IP ister
+                                            # Bulutta (AKS/EKS/GKE) EXTERNAL-IP otomatik atanır. Yerel kind'da sağlayıcı yoksa <pending> kalır
+  selector:
+    app: microservice1-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

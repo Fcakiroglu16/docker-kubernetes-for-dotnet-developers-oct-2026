@@ -1,0 +1,54 @@
+apiVersion: apps/v1                         # API sürümü
+kind: Deployment                            # Nesne türü: Deployment
+metadata:
+  name: strategy-zero-downtime
+  namespace: ecommerce-dev
+  labels:
+    app: strategy-zero-downtime
+spec:
+  replicas: 4                               # Stratejiler 4 Pod üzerinden karşılaştırılır
+  selector:
+    matchLabels:
+      app: strategy-zero-downtime
+  strategy:
+    type: RollingUpdate                     # Pod'ları kademeli değiştirir
+    rollingUpdate:
+      # Kesintisiz güncelleme. Önce 1 yeni Pod açılır, Ready olunca 1 eski Pod silinir.
+      # Hazır Pod sayısı hiçbir an 4'ün altına inmez. Bedeli: 1 Pod'luk geçici ek kaynak ve yavaş ilerleme.
+      maxSurge: 1                          # Güncelleme sırasında istenen sayının üstüne açılabilecek en fazla Pod
+      maxUnavailable: 0                    # Güncelleme sırasında kullanılamaz olabilecek en fazla Pod
+  template:
+    metadata:
+      labels:
+        app: strategy-zero-downtime
+    spec:
+      containers:
+        - name: microservice1-api           # kubectl set image bu adı kullanır
+          image: microservice1-api:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Startup__SeedDelaySeconds   # Açılışta 10 sn bekler, yeni Pod'un Ready olması zaman alır
+              value: "10"
+          resources:                        # Pod başına limit 250m: en kötü durumda (8 Pod) quota'ya sığar
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:                   # Rolling update bu probe'a göre ilerler
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3

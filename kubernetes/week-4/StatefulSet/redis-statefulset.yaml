@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: StatefulSet                           # Her Pod'un sabit adı (redis-0, redis-1, ...) ve kendi diski olur
+metadata:
+  name: redis
+  namespace: ecommerce-dev
+spec:
+  serviceName: redis-headless               # Pod DNS adları bu headless Service üzerinden oluşur
+  replicas: 3                               # redis-0: master, redis-1 ve redis-2: replica
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              # Pod adının sonundaki sıra numarası: redis-0 -> 0
+              ORDINAL=${HOSTNAME##*-}
+              if [ "$ORDINAL" = "0" ]; then
+                exec redis-server --appendonly yes
+              else
+                # Replica'lar master'a headless DNS adıyla bağlanır. IP bilmeye gerek yok
+                exec redis-server --appendonly yes --replicaof redis-0.redis-headless 6379
+              fi
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: data
+              mountPath: /data              # Redis AOF dosyası burada. Pod silinse de disk kalır
+  volumeClaimTemplates:                     # Her Pod için ayrı PVC üretilir: data-redis-0, data-redis-1, ...
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

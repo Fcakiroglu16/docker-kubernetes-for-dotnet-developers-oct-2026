@@ -1,0 +1,61 @@
+apiVersion: apps/v1                         # API sürümü
+kind: Deployment                            # Nesne türü: Deployment (Service'in trafik göndereceği Pod'ları üretir)
+metadata:
+  name: microservice1-backend
+  namespace: ecommerce-dev
+  labels:
+    app: microservice1-backend
+spec:
+  replicas: 3                               # 3 Pod. Service trafiği bunlara dağıtır
+  selector:
+    matchLabels:
+      app: microservice1-backend
+  template:
+    metadata:
+      labels:
+        app: microservice1-backend          # Service'lerin selector'ı bu label'a bakar
+        tier: backend
+    spec:
+      containers:
+        - name: microservice1-api
+          image: microservice1-api:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http                    # Service targetPort'ta bu adı kullanır
+              containerPort: 8080
+          env:
+            - name: Startup__SeedDelaySeconds
+              value: "10"
+            # Hangi Pod'un cevap verdiğini görmek için: Pod'un adı App__Mode ortam değişkenine yazılır.
+            # Uygulama bunu GET /config cevabında "mode" alanı olarak döndürür (koda dokunmaya gerek yok).
+            - name: App__Mode
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name  # Downward API: Pod'un kendi adı
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:                   # Ready olmayan Pod Service'in endpoint listesine EKLENMEZ, trafik almaz
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3

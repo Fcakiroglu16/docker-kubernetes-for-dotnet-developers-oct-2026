@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-redis
+  namespace: ecommerce-dev
+spec:
+  # selector YOK: Kubernetes bu Service için otomatik endpoint üretmez.
+  # Endpoint listesini sen yazarsın (endpointslice.yaml). Adres Pod, VM veya cluster dışı bir sunucu olabilir.
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379

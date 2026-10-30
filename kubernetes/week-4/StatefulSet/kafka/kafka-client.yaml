@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kafka-client                        # kafka-topics.sh, kafka-console-producer.sh ve kafka-console-consumer.sh için istemci Pod
+  namespace: ecommerce-dev
+spec:
+  containers:
+    - name: client
+      image: apache/kafka:3.9.0             # Kafka komut satırı araçları /opt/kafka/bin altında
+      command: ["sleep", "3600"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "128Mi"
+        limits:
+          cpu: "300m"
+          memory: "256Mi"

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bluegreen-preview                   # Yeni (green) ortamı canlıya almadan ÖNCE test etmek için ayrı adres
+  namespace: ecommerce-dev
+spec:
+  type: ClusterIP
+  selector:
+    app: bluegreen-api
+    version: green                          # Her zaman green ortamına gider
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
