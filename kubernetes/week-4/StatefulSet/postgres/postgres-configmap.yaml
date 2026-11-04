@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: ecommerce-dev
+data:
+  init-replication.sh: |
+    #!/bin/sh
+    # Sadece primary'nin ilk açılışında çalışır (boş PGDATA). Replica'lar diski primary'den kopyalar
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<SQL
+    CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD '$REPLICATION_PASSWORD';
+    SQL
+    # Varsayılan pg_hba.conf 'replication' bağlantılarına izin vermez, replicator için ekle
+    echo "host replication replicator all scram-sha-256" >> "$PGDATA/pg_hba.conf"

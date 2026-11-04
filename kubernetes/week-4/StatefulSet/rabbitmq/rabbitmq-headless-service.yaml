@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-headless
+  namespace: ecommerce-dev
+  labels:
+    app: rabbitmq
+spec:
+  clusterIP: None                           # Headless: her node'a rabbitmq-N.rabbitmq-headless... adıyla ulaşılır
+  publishNotReadyAddresses: true            # Ready olmayan Pod'lar da DNS'e girer. Node'lar açılışta birbirini bulmalı,
+                                            # yoksa küme kurulamaz ve hiçbiri Ready olamaz
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp                            # İstemci trafiği
+      port: 5672
+      targetPort: amqp
+    - name: management                      # Yönetim arayüzü ve HTTP API
+      port: 15672
+      targetPort: management
+    - name: epmd                            # Erlang node keşfi
+      port: 4369
+      targetPort: epmd
+    - name: dist                            # Node'lar arası Erlang trafiği
+      port: 25672
+      targetPort: dist

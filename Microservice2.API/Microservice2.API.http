@@ -1,0 +1,11 @@
+@Microservice2.API_HostAddress = http://localhost:5279
+
+GET {{Microservice2.API_HostAddress}}/openapi/v1.json
+Accept: application/json
+
+###
+
+GET {{Microservice2.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

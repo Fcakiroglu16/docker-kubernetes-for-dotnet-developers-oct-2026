@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ecommerce-dev
+spec:
+  serviceName: postgres-headless            # Pod DNS adları bu headless Service üzerinden oluşur
+  replicas: 3                               # postgres-0: primary, postgres-1 ve postgres-2: replica
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        runAsUser: 70                       # postgres:alpine imajındaki postgres kullanıcısı
+        runAsGroup: 70
+        fsGroup: 70                         # PVC'ye yazabilmesi için
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              # Pod adının sonundaki sıra numarası: postgres-0 -> 0
+              ORDINAL=${HOSTNAME##*-}
+              if [ "$ORDINAL" != "0" ] && [ ! -s "$PGDATA/PG_VERSION" ]; then
+                # Replica: boş diski primary'den kopyala. -R standby.signal ve primary_conninfo yazar
+                until pg_isready -q -h postgres-0.postgres-headless -p 5432; do
+                  echo "primary bekleniyor"; sleep 2
+                done
+                mkdir -p "$PGDATA" && chmod 700 "$PGDATA"
+                PGPASSWORD="$REPLICATION_PASSWORD" pg_basebackup \
+                  -h postgres-0.postgres-headless -U replicator \
+                  -D "$PGDATA" -R -X stream
+              fi
+              # Primary: boş diskte imajın entrypoint'i initdb çalıştırır. Replica: PG_VERSION var, initdb atlanır
+              exec docker-entrypoint.sh postgres
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: PGDATA                  # PVC kök dizininde lost+found olur, veri alt klasörde tutulur
+              value: /var/lib/postgresql/data/pgdata
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d   # Sadece primary'nin ilk açılışında çalışır
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+            defaultMode: 0755
+  volumeClaimTemplates:                     # data-postgres-0, data-postgres-1, data-postgres-2
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi

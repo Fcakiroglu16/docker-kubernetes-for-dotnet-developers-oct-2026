@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary
+  namespace: ecommerce-dev
+spec:
+  type: ClusterIP
+  selector:
+    statefulset.kubernetes.io/pod-name: postgres-0   # Sadece primary. Yazma buraya gider
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+# Replica'lara okuma için doğrudan DNS adıyla ulaşılır: postgres-1.postgres-headless / postgres-2.postgres-headless
+# (StatefulSet Pod'ları aynı label'ı taşıdığı için replica'ları ayrı seçen bir Service yazılamaz)

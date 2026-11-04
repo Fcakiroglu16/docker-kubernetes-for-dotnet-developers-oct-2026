@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microservice1.API", "Micros
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkerService1", "WorkerService1\WorkerService1.csproj", "{3D9EC89A-3BB8-437C-BC02-1D61CAF94B0F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microservice2.API", "Microservice2.API\Microservice2.API.csproj", "{B94C308C-9B96-4B0C-9D9B-0739B25103ED}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{3D9EC89A-3BB8-437C-BC02-1D61CAF94B0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3D9EC89A-3BB8-437C-BC02-1D61CAF94B0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3D9EC89A-3BB8-437C-BC02-1D61CAF94B0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B94C308C-9B96-4B0C-9D9B-0739B25103ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B94C308C-9B96-4B0C-9D9B-0739B25103ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B94C308C-9B96-4B0C-9D9B-0739B25103ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B94C308C-9B96-4B0C-9D9B-0739B25103ED}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: ecommerce-dev
+data:
+  10-cluster.conf: |
+    # Node'lar küme üyelerini bu sabit listeden bulur (Kubernetes API'ye gerek yok)
+    cluster_formation.peer_discovery_backend = classic_config
+    cluster_formation.classic_config.nodes.1 = rabbit@rabbitmq-0.rabbitmq-headless.ecommerce-dev.svc.cluster.local
+    cluster_formation.classic_config.nodes.2 = rabbit@rabbitmq-1.rabbitmq-headless.ecommerce-dev.svc.cluster.local
+    cluster_formation.classic_config.nodes.3 = rabbit@rabbitmq-2.rabbitmq-headless.ecommerce-dev.svc.cluster.local
+    # Küme kurulamazsa node'u yeniden denemeye zorla
+    cluster_formation.node_cleanup.interval = 30
+    cluster_partition_handling = pause_minority

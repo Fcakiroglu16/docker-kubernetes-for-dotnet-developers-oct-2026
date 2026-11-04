@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: ecommerce-dev
+spec:
+  serviceName: rabbitmq-headless            # Pod DNS adları bu headless Service üzerinden oluşur
+  replicas: 3                               # 3 node: quorum queue'lar çoğunluk (2/3) ile çalışır
+  podManagementPolicy: Parallel             # Pod'lar aynı anda başlar. Node'lar birbirini beklemesin
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      securityContext:
+        fsGroup: 999                        # RabbitMQ imajı 999 kullanıcısıyla çalışır, PVC'ye yazabilmesi için
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4.0-management-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+            - name: epmd
+              containerPort: 4369
+            - name: dist
+              containerPort: 25672
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: RABBITMQ_USE_LONGNAME   # Node adı FQDN olacak: rabbit@rabbitmq-0.rabbitmq-headless....
+              value: "true"
+            - name: RABBITMQ_NODENAME       # Kalıcı DNS adı: Pod IP'si değişse de node kimliği aynı kalır
+              value: "rabbit@$(POD_NAME).rabbitmq-headless.ecommerce-dev.svc.cluster.local"
+          envFrom:
+            - secretRef:
+                name: rabbitmq-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq  # Mnesia veritabanı ve kuyruk verisi. Pod silinse de disk kalır
+            - name: config
+              mountPath: /etc/rabbitmq/conf.d/10-cluster.conf
+              subPath: 10-cluster.conf      # Sadece tek dosya: imajın varsayılan conf.d dosyaları korunur
+      volumes:
+        - name: config
+          configMap:
+            name: rabbitmq-config
+  volumeClaimTemplates:                     # data-rabbitmq-0, data-rabbitmq-1, data-rabbitmq-2
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
