@@ -1,10 +1,23 @@
+using Microservice2.API.Data;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// PostgreSQL bağlantısı. Dev: appsettings.Development.json (NodePort 30432), Kubernetes: appsettings.Production.json (postgres-primary Service).
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+
 var app = builder.Build();
+
+// Bekleyen migration'ları uygular (veritabanı yoksa önce oluşturur).
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -32,6 +45,42 @@ app.MapGet("/weatherforecast", () =>
         return forecast;
     })
     .WithName("GetWeatherForecast");
+
+app.MapGet("/todos", async (AppDbContext db) => await db.Todos.AsNoTracking().OrderBy(t => t.Id).ToListAsync())
+    .WithName("GetTodos");
+
+app.MapGet("/todos/{id:int}", async (int id, AppDbContext db) =>
+        await db.Todos.FindAsync(id) is { } todo ? Results.Ok(todo) : Results.NotFound())
+    .WithName("GetTodo");
+
+app.MapPost("/todos", async (TodoItem todo, AppDbContext db) =>
+    {
+        db.Todos.Add(todo);
+        await db.SaveChangesAsync();
+        return Results.Created($"/todos/{todo.Id}", todo);
+    })
+    .WithName("CreateTodo");
+
+app.MapPut("/todos/{id:int}", async (int id, TodoItem input, AppDbContext db) =>
+    {
+        var todo = await db.Todos.FindAsync(id);
+        if (todo is null) return Results.NotFound();
+        todo.Title = input.Title;
+        todo.IsCompleted = input.IsCompleted;
+        await db.SaveChangesAsync();
+        return Results.Ok(todo);
+    })
+    .WithName("UpdateTodo");
+
+app.MapDelete("/todos/{id:int}", async (int id, AppDbContext db) =>
+    {
+        var todo = await db.Todos.FindAsync(id);
+        if (todo is null) return Results.NotFound();
+        db.Todos.Remove(todo);
+        await db.SaveChangesAsync();
+        return Results.NoContent();
+    })
+    .WithName("DeleteTodo");
 
 app.Run();
 

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: storage-writer
+  namespace: ecommerce-dev
+spec:
+  containers:
+    - name: writer
+      image: busybox:1.37
+      command: ["sh", "-c"]
+      args:
+        - |
+          # Her başlangıçta diske bir satır ekler. Pod silinip yeniden oluşunca eski satırlar durur
+          echo "$(date) - $HOSTNAME basladi" >> /data/log.txt
+          cat /data/log.txt
+          sleep 3600
+      volumeMounts:
+        - name: data
+          mountPath: /data                  # PVC bu klasöre bağlanır
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: manual-pvc               # Pod diske değil PVC'ye referans verir

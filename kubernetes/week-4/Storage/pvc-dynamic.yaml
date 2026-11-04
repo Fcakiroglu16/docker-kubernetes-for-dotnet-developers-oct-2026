@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dynamic-pvc
+  namespace: ecommerce-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # storageClassName yazılmadı: cluster'ın varsayılan StorageClass'ı kullanılır (kind'da "standard")
+  # PV'yi elle yazmana gerek kalmaz, provisioner PVC'ye göre PV'yi kendisi üretir
+  resources:
+    requests:
+      storage: 1Gi
