@@ -1,8 +1,10 @@
+using Microservice1.API;
 using Microservice1.API.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +20,16 @@ builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy("API ayakta"), tags: ["live"])
     // Hazır EF Core health check'i: DbContext ile veritabanına bağlanılabiliyor mu (CanConnectAsync).
     // Readiness: veritabanı bağımlılığı.
-    .AddDbContextCheck<AppDbContext>(name: "database", tags: ["ready"]);
+    .AddDbContextCheck<AppDbContext>(name: "database", tags: ["ready"])
+    // Readiness: Redis bağımlılığı. Bağlantı yoksa Pod trafikten çıkar, restart edilmez.
+    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"]);
+
+// Redis bağlantısı: ConnectionStrings:Redis ayarından okunur.
+// Development -> localhost:30379 (NodePort), Production -> cluster içi DNS adı (appsettings.Production.json).
+// Multiplexer uygulama boyunca tek bir kez oluşturulur ve paylaşılır (StackExchange.Redis önerisi).
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")
+        ?? throw new InvalidOperationException("ConnectionStrings:Redis tanımlı değil")));
 
 // EF Core InMemory: gerçek bir veritabanı olmadan, bellek içinde çalışan örnek veritabanı.
 builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("Microservice1Db"));
@@ -26,6 +37,9 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDataba
 // Açılış durumu ve seed data. Seed bitene kadar /health/startup 503 döner.
 builder.Services.AddSingleton<StartupState>();
 builder.Services.AddHostedService<DatabaseSeeder>();
+
+// RabbitMQ publisher. Development -> localhost:30672 (NodePort), Production -> rabbitmq-external Service (appsettings.Production.json).
+builder.Services.AddSingleton<RabbitMqPublisher>();
 
 var app = builder.Build();
 
@@ -98,7 +112,45 @@ app.MapGet("/config", (IConfiguration config) => new
 app.MapGet("/products", async (AppDbContext db) => await db.Products.AsNoTracking().ToListAsync())
     .WithName("GetProducts");
 
+// Redis: anahtar/değer yaz ve oku. Yazma master'a gider (NodePort Service sadece redis-0'a bağlanır).
+app.MapPut("/redis/{key}", async (string key, string value, IConnectionMultiplexer redis) =>
+{
+    await redis.GetDatabase().StringSetAsync(key, value);
+    return Results.Ok(new { key, value });
+}).WithName("SetRedisValue");
+
+app.MapGet("/redis/{key}", async (string key, IConnectionMultiplexer redis) =>
+{
+    var value = await redis.GetDatabase().StringGetAsync(key);
+    return value.HasValue ? Results.Ok(new { key, value = value.ToString() }) : Results.NotFound();
+}).WithName("GetRedisValue");
+
+// RabbitMQ: gövdedeki metni kuyruğa gönderir. Microservice2 aynı kuyruğu dinler.
+app.MapPost("/messages", async (SendMessageRequest request, RabbitMqPublisher publisher) =>
+{
+    await publisher.PublishAsync(request.Message);
+    return Results.Accepted(value: new { queue = RabbitMqPublisher.QueueName, request.Message });
+}).WithName("SendMessage");
+
 app.Run();
+
+record SendMessageRequest(string Message);
+
+class RedisHealthCheck(IConnectionMultiplexer redis) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var latency = await redis.GetDatabase().PingAsync();
+            return HealthCheckResult.Healthy($"Redis ping {latency.TotalMilliseconds:F0} ms");
+        }
+        catch (Exception ex)
+        {
+            return HealthCheckResult.Unhealthy("Redis erişilemiyor", ex);
+        }
+    }
+}
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {

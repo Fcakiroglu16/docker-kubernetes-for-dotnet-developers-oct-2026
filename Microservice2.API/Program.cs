@@ -1,3 +1,4 @@
+using Microservice2.API;
 using Microservice2.API.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,10 @@ builder.Services.AddOpenApi();
 // PostgreSQL bağlantısı. Dev: appsettings.Development.json (NodePort 30432), Kubernetes: appsettings.Production.json (postgres-primary Service).
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+
+// RabbitMQ consumer. Development -> localhost:30672 (NodePort), Production -> rabbitmq-external Service (appsettings.Production.json).
+builder.Services.AddSingleton<ReceivedMessageStore>();
+builder.Services.AddHostedService<RabbitMqConsumer>();
 
 var app = builder.Build();
 
@@ -81,6 +86,9 @@ app.MapDelete("/todos/{id:int}", async (int id, AppDbContext db) =>
         return Results.NoContent();
     })
     .WithName("DeleteTodo");
+
+// Kuyruktan alınan son mesajlar (bellekte tutulur).
+app.MapGet("/messages", (ReceivedMessageStore store) => store.GetAll()).WithName("GetReceivedMessages");
 
 app.Run();
 

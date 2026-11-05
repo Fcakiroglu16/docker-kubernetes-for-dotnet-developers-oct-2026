@@ -6,14 +6,14 @@ Tüm komutlar repo kök klasöründen çalıştırılır. Namespace ve quota iç
 
 | Dosya | Görevi |
 |---|---|
-| [redis-headless-service.yaml](redis-headless-service.yaml) | `clusterIP: None` Service |
-| [redis-statefulset.yaml](redis-statefulset.yaml) | 3 Redis Pod'u: `redis-0` master, `redis-1` ve `redis-2` replica. Her biri 1Gi PVC alır |
-| [redis-client.yaml](redis-client.yaml) | `redis-cli` ve `nslookup` içeren istemci Pod |
+| [redis-headless-service.yaml](redis/redis-headless-service.yaml) | `clusterIP: None` Service |
+| [redis-statefulset.yaml](redis/redis-statefulset.yaml) | 3 Redis Pod'u: `redis-0` master, `redis-1` ve `redis-2` replica. Her biri 1Gi PVC alır |
+| [redis-client.yaml](redis/redis-client.yaml) | `redis-cli` ve `nslookup` içeren istemci Pod |
 
 ## Kur
 
 ```bash
-kubectl apply -f kubernetes/week-4/StatefulSet/
+kubectl apply -f kubernetes/week-4/StatefulSet/redis/
 kubectl rollout status sts/redis -n ecommerce-dev
 kubectl wait --for=condition=Ready pod/redis-client -n ecommerce-dev
 kubectl get pods,pvc -n ecommerce-dev -o wide

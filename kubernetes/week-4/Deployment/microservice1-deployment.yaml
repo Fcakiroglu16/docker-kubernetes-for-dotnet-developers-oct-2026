@@ -25,7 +25,7 @@ spec:                                       # Deployment'ın istenen özellikler
     spec:
       containers:
         - name: microservice1-api           # Container'ın adı (kubectl set image bu adı kullanır)
-          image: microservice1-api:1.0      # Çalıştırılacak image. Tag değişince rollout başlar
+          image: microservice1-api:5.0      # Çalıştırılacak image. Tag değişince rollout başlar
           imagePullPolicy: IfNotPresent     # Image node'da varsa registry'ye gitme
           ports:
             - name: http

@@ -70,7 +70,7 @@ kubectl get pvc,pv -n ecommerce-dev | grep -E "dynamic|NAME"
 
 PVC'de `storageClassName` yok, bu yüzden `(default)` işaretli sınıf (`standard`) kullanılır. `pvc-<uid>` adlı bir PV kendiliğinden oluşur. Sınıfın `VOLUMEBINDINGMODE` değeri `WaitForFirstConsumer`: PVC, bir Pod onu kullanana kadar `Pending` kalır. Disk, Pod'un düştüğü node'da üretilir.
 
-StatefulSet'teki `volumeClaimTemplates` ([redis-statefulset.yaml](../StatefulSet/redis-statefulset.yaml)) bu mekanizmayı kullanır. Her Pod için bir PVC, her PVC için bir PV üretilir.
+StatefulSet'teki `volumeClaimTemplates` ([redis-statefulset.yaml](../StatefulSet/redis/redis-statefulset.yaml)) bu mekanizmayı kullanır. Her Pod için bir PVC, her PVC için bir PV üretilir.
 
 ## 4. reclaimPolicy: PVC silinince PV'ye ne olur
 
