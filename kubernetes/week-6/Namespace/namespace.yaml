@@ -1,0 +1,4 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: scheduling-lab                      # Week-6 örneklerinin hepsi bu namespace'te çalışır

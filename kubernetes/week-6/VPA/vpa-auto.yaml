@@ -1,0 +1,24 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: cpu-hog-vpa
+  namespace: scheduling-lab
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cpu-hog
+  updatePolicy:
+    updateMode: "Recreate"                  # Öneri mevcut request'ten çok farklıysa Pod'u silip yeni request'le yeniden oluşturur
+    minReplicas: 1                          # Tek replika kalsa da VPA Pod'u yeniden başlatabilsin
+  resourcePolicy:
+    containerPolicies:
+      - containerName: hog
+        minAllowed:
+          cpu: 10m
+          memory: 16Mi
+        maxAllowed:
+          cpu: 500m                         # VPA bu değerin üstüne çıkmaz
+          memory: 64Mi
+        controlledResources: ["cpu", "memory"]
+        controlledValues: RequestsOnly      # Sadece request değişir; yoksa VPA limit'i request:limit oranına göre orantılı büyütür (10m->500m ise limit 500m->25 çekirdek olur)
