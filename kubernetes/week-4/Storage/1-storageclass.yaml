@@ -1,0 +1,8 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass                          # Cluster seviyesinde nesne. Namespace'i yoktur
+metadata:
+  name: retain-local
+provisioner: rancher.io/local-path          # Diski üretecek eklenti. Kendi cluster'ında: kubectl get storageclass
+reclaimPolicy: Retain                       # Üretilen PV'ye yazılır. PVC silinince PV ve veri silinmez (varsayılan Delete)
+volumeBindingMode: WaitForFirstConsumer     # Pod oluşunca bağlama yapılır; Immediate olsaydı PVC oluşur oluşmaz bağlanır
+# allowVolumeExpansion: true                # Büyütmeye izin verir. Provisioner desteklemeli, local-path desteklemez

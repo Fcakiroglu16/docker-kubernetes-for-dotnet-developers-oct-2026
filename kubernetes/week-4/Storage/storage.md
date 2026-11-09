@@ -17,6 +17,9 @@ Tüm komutlar repo kök klasöründen çalıştırılır. Namespace ve quota iç
 | [pod-manual.yaml](pod-manual.yaml) | PVC'yi `/data` yoluna bağlayıp `log.txt`'ye satır ekleyen Pod |
 | [pvc-dynamic.yaml](pvc-dynamic.yaml) | StorageClass yazılmayan PVC. PV otomatik üretilir |
 | [pod-dynamic.yaml](pod-dynamic.yaml) | Dinamik PVC'yi kullanan Pod |
+| [storageclass.yaml](storageclass.yaml) | Elle yazılan StorageClass (`retain-local`, `Retain`) |
+| [pvc-custom.yaml](pvc-custom.yaml) | `retain-local` sınıfını isteyen PVC |
+| [pod-custom.yaml](pod-custom.yaml) | `custom-pvc`'yi kullanan Pod |
 
 ## 1. Statik provisioning: PV'yi elle yaz
 
@@ -72,7 +75,26 @@ PVC'de `storageClassName` yok, bu yüzden `(default)` işaretli sınıf (`standa
 
 StatefulSet'teki `volumeClaimTemplates` ([redis-statefulset.yaml](../StatefulSet/redis/redis-statefulset.yaml)) bu mekanizmayı kullanır. Her Pod için bir PVC, her PVC için bir PV üretilir.
 
-## 4. reclaimPolicy: PVC silinince PV'ye ne olur
+## 4. Kendi StorageClass'ını oluştur
+
+Varsayılan `standard` sınıfı `Delete` kullanır. Veriyi koruyan bir sınıf yazalım:
+
+```bash
+kubectl apply -f kubernetes/week-4/Storage/storageclass.yaml
+kubectl get storageclass
+kubectl apply -f kubernetes/week-4/Storage/pvc-custom.yaml -f kubernetes/week-4/Storage/pod-custom.yaml
+kubectl wait --for=condition=Ready pod/storage-custom -n ecommerce-dev
+kubectl get pvc,pv -n ecommerce-dev | grep -E "custom|NAME"
+```
+
+Önemli alanlar:
+
+- `provisioner`: Diski kim üretir. Bulutta `ebs.csi.aws.com`, `disk.csi.azure.com`, `pd.csi.storage.gke.io` gibi CSI sürücüleri yazılır. Bu cluster'da `rancher.io/local-path`.
+- `reclaimPolicy`: Üretilen PV'ye aktarılır. `Retain` olduğu için PVC silinince PV `Released` kalır.
+- `volumeBindingMode`: `Immediate` PVC oluşur oluşmaz diski üretir. `WaitForFirstConsumer` Pod'un node'unu bekler.
+- `storageClassName: ""` (boş) yazılırsa varsayılan sınıf da devreye girmez, yalnızca elle yazılmış PV'ye bağlanır.
+
+## 5. reclaimPolicy: PVC silinince PV'ye ne olur
 
 | Politika | PVC silinince |
 |---|---|
@@ -80,18 +102,18 @@ StatefulSet'teki `volumeClaimTemplates` ([redis-statefulset.yaml](../StatefulSet
 | `Delete` | PV ve içindeki disk silinir. Dinamik PV'lerin varsayılanı |
 
 ```bash
-kubectl delete pod storage-writer storage-dynamic -n ecommerce-dev
-kubectl delete pvc manual-pvc dynamic-pvc -n ecommerce-dev
-kubectl get pv | grep -E "NAME|manual|dynamic"
+kubectl delete pod storage-writer storage-dynamic storage-custom -n ecommerce-dev
+kubectl delete pvc manual-pvc dynamic-pvc custom-pvc -n ecommerce-dev
+kubectl get pv | grep -E "NAME|manual|dynamic|custom"
 ```
 
-Testte `manual-pv` `Released` durumunda kaldı, dinamik PV listeden kayboldu. `Released` PV yeni bir PVC'ye bağlanmaz, çünkü eski `claimRef` içinde durur. Yeniden kullanmak için PV'yi silip yeniden oluştur (veya `claimRef` alanını temizle).
+`manual-pv` ve `retain-local` ile üretilen PV `Released` durumunda kalır; dinamik (`standard`) PV listeden kaybolur. Testte `manual-pv` `Released` durumunda kaldı, dinamik PV listeden kayboldu. `Released` PV yeni bir PVC'ye bağlanmaz, çünkü eski `claimRef` içinde durur. Yeniden kullanmak için PV'yi silip yeniden oluştur (veya `claimRef` alanını temizle).
 
 ## Önemli noktalar
 
 - **Pod'dan önce PVC gerekir.** PVC yoksa Pod `Pending` kalır (`persistentvolumeclaim "..." not found`).
 - **accessModes:** `ReadWriteOnce` (tek node yazar), `ReadOnlyMany` (çok node okur), `ReadWriteMany` (çok node yazar, NFS gibi disk gerekir), `ReadWriteOncePod` (tek Pod).
-- **ResourceQuota ve LimitRange:** `ecommerce-dev` en fazla 5 PVC ve 20Gi'a izin verir. LimitRange PVC başına en az 1Gi şart koşar, bu yüzden 500Mi'lik PVC reddedilir. Postgres'in 3 PVC'si ile birlikte bu örnek kotayı tam doldurur (5/5).
+- **ResourceQuota ve LimitRange:** `ecommerce-dev` en fazla 5 PVC ve 20Gi'a izin verir. LimitRange PVC başına en az 1Gi şart koşar, bu yüzden 500Mi'lik PVC reddedilir. Postgres'in 3 PVC'si ile birlikte bu örnekteki PVC'ler kotayı doldurur. Kota dolarsa PVC'leri sırayla silip dene.
 - **Boyut:** PVC 500Mi isteyip 1Gi'lik PV'ye bağlansa bile PVC'ye PV'nin tamamı (1Gi) görünür.
 
 ## Temizle
@@ -100,4 +122,4 @@ Testte `manual-pv` `Released` durumunda kaldı, dinamik PV listeden kayboldu. `R
 kubectl delete -f kubernetes/week-4/Storage/
 ```
 
-`manual-pv` `Retain` olduğu için node üzerindeki `/mnt/data/manual-pv` klasörü silinmez. PV nesnesi ise yukarıdaki komutla silinir.
+`manual-pv` `Retain` olduğu için node üzerindeki `/mnt/data/manual-pv` klasörü silinmez. `retain-local` ile üretilen PV de kalır: `kubectl get pv` ile bulup `kubectl delete pv <ad>` ile sil.

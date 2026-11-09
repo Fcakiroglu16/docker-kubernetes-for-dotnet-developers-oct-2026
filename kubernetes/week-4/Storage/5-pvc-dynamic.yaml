@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dynamic-pvc
+  namespace: ecommerce-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard                # Sınıf açıkça yazıldı. Yazılmasaydı varsayılan sınıf (burada yine "standard") kullanılırdı
+  # PV'yi elle yazmana gerek kalmaz, provisioner PVC'ye göre PV'yi kendisi üretir
+  resources:
+    requests:
+      storage: 1Gi    # Üretilecek PV'nin boyutunu bu değer belirler. local-path boyutu zorlamaz, bulut diskleri (EBS, Azure Disk) o boyutta disk açar

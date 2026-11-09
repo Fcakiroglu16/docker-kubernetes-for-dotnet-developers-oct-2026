@@ -9,8 +9,8 @@ spec:
     storage: 1Gi                            # PV'nin boyutu. PVC bundan büyük istek yapamaz
   accessModes:
     - ReadWriteOnce                         # Aynı anda tek node yazabilir
-  persistentVolumeReclaimPolicy: Retain     # PVC silinince PV ve veri silinmez (Delete olsaydı disk de silinirdi)
-  storageClassName: manual                  # PVC ile eşleşmek için aynı sınıf adı gerekir
+  persistentVolumeReclaimPolicy: Retain      # PVC silinince PV ve veri silinmez (Delete olsaydı disk de silinirdi)
+  storageClassName: retain-local                  # PVC ile eşleşmek için aynı sınıf adı gerekir
   hostPath:
     path: /mnt/data/manual-pv               # Node üzerindeki klasör. Sadece eğitim/test için. Production'da kullanılmaz
     type: DirectoryOrCreate
