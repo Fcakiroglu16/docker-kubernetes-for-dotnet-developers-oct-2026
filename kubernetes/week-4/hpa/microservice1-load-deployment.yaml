@@ -1,0 +1,73 @@
+apiVersion: apps/v1                         # API sürümü (Deployment "apps" API grubundadır)
+kind: Deployment                            # Nesne türü: Deployment (HPA bu nesnenin replika sayısını değiştirir)
+metadata:
+  name: microservice1-load                  # Nesnenin adı. Diğer HPA/Deployment örnekleriyle karışmasın diye ayrı ad ve label kullanıldı
+  namespace: ecommerce-dev                  # Nesnenin oluşturulacağı namespace
+  labels:
+    app: microservice1-load
+spec:
+  # replicas BİLEREK yazılmadı. HPA replika sayısını kendisi yönetir.
+  # Burada sabit bir sayı olursa her "kubectl apply" HPA'nın ayarladığı sayıyı ezer.
+  selector:                                 # Deployment hangi Pod'ları yönetiyor?
+    matchLabels:
+      app: microservice1-load               # template.metadata.labels ile aynı olmalı
+  template:                                 # Pod şablonu
+    metadata:
+      labels:
+        app: microservice1-load
+    spec:
+      containers:
+        - name: microservice1-api
+          image: microservice1-api:7.0      # /load/cpu ve /load/memory endpoint'lerini içeren image
+          imagePullPolicy: IfNotPresent     # Image node'da varsa registry'ye gitme
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: Startup__SeedDelaySeconds   # Açılışta seed data için beklenecek süre (sn). Yeni Pod'lar hızlı hazır olsun diye kısa tutuldu
+              value: "3"
+          resources:                        # HPA'nın çalışması için requests ZORUNLUDUR
+            requests:                       # HPA yüzdeyi buna göre hesaplar: kullanım / requests
+              cpu: "100m"                   # %50 CPU hedefi = Pod başına 50m kullanım
+              memory: "256Mi"               # %70 memory hedefi = Pod başına yaklaşık 180Mi kullanım
+            limits:
+              cpu: "500m"                   # Bir Pod en fazla yarım çekirdek kullanabilir
+              memory: "512Mi"               # LimitRange: limit/request oranı en fazla 4 olabilir
+          startupProbe:                     # Uygulama açılana kadar diğer probe'lar çalışmaz
+            httpGet:
+              path: /health/startup
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:                   # Hazır olmayan Pod Service'ten trafik almaz
+            httpGet:
+              # /health/ready Redis'e de bakar. Bu örnekte Redis kurulmadığı için Pod hiç Ready olmaz ve trafik alamazdı.
+              # HPA testi bağımlılık gerektirmediğinden readiness için /health/live kullanıldı.
+              path: /health/live
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service                               # İstekleri tüm Pod'lara dağıtır. HPA'nın açtığı yeni Pod'lar da Ready olunca otomatik eklenir
+metadata:
+  name: microservice1-load-svc
+  namespace: ecommerce-dev
+spec:
+  # Postman bilgisayardan istek atacağı için LoadBalancer kullanıldı. Docker Desktop (kind modu) bu Service'i localhost'a bağlar.
+  # NodePort'a Docker Desktop'ta bilgisayardan erişilemez; port-forward ise tek Pod'a bağlanır, yükü dağıtmaz.
+  type: LoadBalancer
+  selector:
+    app: microservice1-load                 # Bu label'a sahip Pod'lara yönlendirir
+  ports:
+    - name: http
+      port: 8081                            # Postman: http://localhost:8081 (80 portu Service örneğindeki LoadBalancer ile çakışmasın)
+      targetPort: http                      # Container'daki 8080 portu

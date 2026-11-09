@@ -41,6 +41,9 @@ builder.Services.AddHostedService<DatabaseSeeder>();
 // RabbitMQ publisher. Development -> localhost:30672 (NodePort), Production -> rabbitmq-external Service (appsettings.Production.json).
 builder.Services.AddSingleton<RabbitMqPublisher>();
 
+// HPA testi için CPU ve memory yükü üreten servis (/load/* endpoint'leri).
+builder.Services.AddSingleton<LoadGenerator>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -131,6 +134,44 @@ app.MapPost("/messages", async (SendMessageRequest request, RabbitMqPublisher pu
     await publisher.PublishAsync(request.Message);
     return Results.Accepted(value: new { queue = RabbitMqPublisher.QueueName, request.Message });
 }).WithName("SendMessage");
+
+// HPA testi: CPU yükü. Her istek ms milisaniye boyunca bir çekirdeği meşgul eder.
+// Yanıttaki "pod" alanı, Service'in istekleri hangi Pod'lara dağıttığını gösterir.
+app.MapGet("/load/cpu", (LoadGenerator load, int ms = 200) =>
+{
+    load.BurnCpu(ms);
+    return Results.Ok(new { pod = Environment.MachineName, cpuMs = ms });
+}).WithName("LoadCpu");
+
+// HPA testi: memory yükü. Her istek mb kadar bellek ayırır, seconds sn tutar, sonra bırakır.
+// Pod'da tutulan bellek MaxHeldMb'yi aşacaksa ayırmaz, 429 döner.
+app.MapGet("/load/memory", (LoadGenerator load, int mb = 20, int seconds = 60) =>
+{
+    if (!load.AllocateMemory(mb, seconds))
+        return Results.Problem($"Pod en fazla {LoadGenerator.MaxHeldMb} MB tutabilir", statusCode: StatusCodes.Status429TooManyRequests);
+
+    return Results.Ok(new
+    {
+        pod = Environment.MachineName,
+        heldMb = load.HeldMb,
+        workingSetMb = Environment.WorkingSet / 1024 / 1024
+    });
+}).WithName("LoadMemory");
+
+// HPA testi: tutulan belleği süresini beklemeden bırakır (yalnızca isteğin düştüğü Pod'da).
+app.MapDelete("/load/memory", (LoadGenerator load) =>
+{
+    load.ReleaseAll();
+    return Results.Ok(new { pod = Environment.MachineName, heldMb = load.HeldMb });
+}).WithName("ReleaseMemory");
+
+// HPA testi: Pod'un o anki durumu.
+app.MapGet("/load/status", (LoadGenerator load) => new
+{
+    pod = Environment.MachineName,
+    heldMb = load.HeldMb,
+    workingSetMb = Environment.WorkingSet / 1024 / 1024
+}).WithName("LoadStatus");
 
 app.Run();
 

@@ -1,0 +1,46 @@
+apiVersion: autoscaling/v2                  # HPA'nın güncel API sürümü (birden fazla metrik ve behavior destekler)
+kind: HorizontalPodAutoscaler               # Nesne türü: HPA (Pod sayısını yüke göre otomatik artırır/azaltır)
+metadata:
+  name: microservice1-load-hpa              # Nesnenin adı
+  namespace: ecommerce-dev                  # Hedefle aynı namespace'te olmalı
+spec:
+  scaleTargetRef:                           # Hangi nesne ölçeklenecek?
+    apiVersion: apps/v1
+    kind: Deployment
+    name: microservice1-load                # Deployment'ın adı
+
+  minReplicas: 2                            # En az 2 Pod her zaman çalışır (yük olmasa da)
+  maxReplicas: 6                            # En fazla 6 Pod (ResourceQuota'ya sığacak şekilde)
+
+  # Birden fazla metrik varsa HPA her biri için ayrı Pod sayısı hesaplar ve EN BÜYÜĞÜNÜ seçer.
+  # Bu yüzden CPU yükü de memory yükü de tek başına ölçeklemeyi tetikler.
+  # Küçülme ise ancak İKİ metrik de hedefin altına inince olur.
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization                 # requests.cpu'nun yüzdesi (100m x %50 = 50m)
+          averageUtilization: 50            # Pod'ların ortalama CPU'su %50'yi aşarsa Pod ekle
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization                 # requests.memory'nin yüzdesi (256Mi x %70 = yaklaşık 180Mi)
+          averageUtilization: 70            # Pod'ların ortalama memory'si %70'i aşarsa Pod ekle
+
+  # Formül (her metrik için ayrı): istenenPod = ceil( mevcutPod x (mevcutOrtalama / hedef) )
+
+  behavior:                                 # Ölçekleme hızını ve titremeyi (flapping) kontrol eder
+    scaleUp:
+      stabilizationWindowSeconds: 0         # Yük artınca beklemeden büyü
+      policies:
+        - type: Pods
+          value: 2                          # Her 15 sn'de en fazla 2 Pod ekle
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 60        # Yük düştükten sonra 60 sn bekle, sonra küçül (varsayılan 300 sn; eğitim için kısaltıldı)
+      policies:
+        - type: Pods
+          value: 1                          # Her 30 sn'de en fazla 1 Pod sil
+          periodSeconds: 30
