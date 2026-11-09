@@ -7,6 +7,7 @@ Tüm komutlar repo kök klasöründen çalıştırılır. Dosyalar:
 | Dosya | Görevi |
 |---|---|
 | [microservice1-replicaset.yaml](microservice1-replicaset.yaml) | HPA'nın ölçekleyeceği ReplicaSet (`replicas` yazılmaz) |
+| [microservice1-service.yaml](microservice1-service.yaml) | ReplicaSet'in Pod'larına trafik dağıtan LoadBalancer Service (`http://localhost:8082`) |
 | [microservice1-hpa.yaml](microservice1-hpa.yaml) | HPA (min 2, max 6, hedef CPU %50) |
 | [microservice1-load-deployment.yaml](microservice1-load-deployment.yaml) | Postman ile yük testi: Deployment + LoadBalancer Service (bkz. [Postman ile CPU ve memory yükü](#postman-ile-cpu-ve-memory-yükü)) |
 | [microservice1-load-hpa.yaml](microservice1-load-hpa.yaml) | Postman ile yük testi: HPA (min 2, max 6, hedef CPU %50 ve memory %70) |
@@ -115,12 +116,22 @@ Namespace, ResourceQuota ve LimitRange yoksa önce [namespace.md](../../week-3/n
 docker build -t microservice1-api:1.0 Microservice1.API
 ```
 
-## Adım 3: ReplicaSet ve HPA'yı oluştur
+## Adım 3: ReplicaSet, Service ve HPA'yı oluştur
 
 ```bash
 kubectl apply -f kubernetes/week-4/hpa/microservice1-replicaset.yaml
+kubectl apply -f kubernetes/week-4/hpa/microservice1-service.yaml
 kubectl apply -f kubernetes/week-4/hpa/microservice1-hpa.yaml
 ```
+
+Service, `app: microservice1-hpa` label'lı tüm Pod'lara trafik dağıtır. HPA yeni Pod açtığında Pod Ready olunca Service'e otomatik eklenir. `EXTERNAL-IP` dolduktan sonra `http://localhost:8082` ile erişilir:
+
+```bash
+kubectl get svc microservice1-hpa-svc -n ecommerce-dev
+kubectl get endpointslices -n ecommerce-dev -l kubernetes.io/service-name=microservice1-hpa-svc
+```
+
+> Readiness probe `/health/ready` kullanır ve Redis'e de bakar. Redis kurulu değilse Pod Ready olmaz ve Service'ten trafik alamaz.
 
 ReplicaSet `replicas` yazılmadığı için 1 Pod ile başlar, HPA `minReplicas` değerine (2) çıkarır:
 
@@ -215,11 +226,12 @@ kubectl get hpa -n ecommerce-dev
 
 ## Temizle
 
-HPA'yı ve ReplicaSet'i (Pod'larıyla birlikte) sil. metrics-server cluster'da kalır, sonraki örneklerde de kullanılır.
+HPA'yı, Service'i ve ReplicaSet'i (Pod'larıyla birlikte) sil. metrics-server cluster'da kalır, sonraki örneklerde de kullanılır.
 
 ```bash
 kubectl delete -f kubernetes/week-4/hpa/microservice1-hpa.yaml --ignore-not-found
 kubectl delete hpa microservice1-hpa-rs -n ecommerce-dev --ignore-not-found
+kubectl delete -f kubernetes/week-4/hpa/microservice1-service.yaml
 kubectl delete -f kubernetes/week-4/hpa/microservice1-replicaset.yaml
 ```
 

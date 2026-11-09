@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service                               # İstekleri ReplicaSet'in tüm Pod'larına dağıtır. HPA'nın açtığı yeni Pod'lar da Ready olunca otomatik eklenir
+metadata:
+  name: microservice1-hpa-svc
+  namespace: ecommerce-dev
+spec:
+  type: ClusterIP
+  selector:
+    app: microservice1-load                  # ReplicaSet'in Pod label'ı ile aynı olmalı
+  ports:
+    - name: http
+      port: 8082                            # http://localhost:8082 (80: Service örneği, 8081: microservice1-load-svc ile çakışmasın)
+      targetPort: http                      # Container'daki 8080 portu
