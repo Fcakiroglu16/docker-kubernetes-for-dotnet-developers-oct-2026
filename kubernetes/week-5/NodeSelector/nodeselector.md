@@ -6,9 +6,9 @@ Komutlar `kubernetes/week-6` klasöründen çalıştırılır.
 
 | Dosya | Görevi |
 |---|---|
-| [pod-nodeselector.yaml](pod-nodeselector.yaml) | `disktype=ssd` etiketli node'a giden Pod |
-| [pod-nodeselector-pending.yaml](pod-nodeselector-pending.yaml) | Hiçbir node'da olmayan etiketi isteyen Pod (Pending kalır) |
-| [deployment-nodeselector.yaml](deployment-nodeselector.yaml) | 3 replikanın tamamı etiketli node'a toplanır |
+| [1-pod-nodeselector.yaml](1-pod-nodeselector.yaml) | `disktype=ssd` etiketli node'a giden Pod |
+| [2-pod-nodeselector-pending.yaml](2-pod-nodeselector-pending.yaml) | Hiçbir node'da olmayan etiketi isteyen Pod (Pending kalır) |
+| [3-deployment-nodeselector.yaml](3-deployment-nodeselector.yaml) | 3 replikanın tamamı etiketli node'a toplanır |
 
 ## Adım 1: Node etiketlerine bak
 
@@ -27,7 +27,7 @@ kubectl get nodes -L disktype
 ## Adım 2: Etikete uyan Pod
 
 ```bash
-kubectl apply -f NodeSelector/pod-nodeselector.yaml
+kubectl apply -f NodeSelector/1-pod-nodeselector.yaml
 kubectl get pod web-ssd -n scheduling-lab -o wide
 ```
 
@@ -36,7 +36,7 @@ Pod `desktop-worker` node'una düşer.
 ## Adım 3: Etikete uyan node yok
 
 ```bash
-kubectl apply -f NodeSelector/pod-nodeselector-pending.yaml
+kubectl apply -f NodeSelector/2-pod-nodeselector-pending.yaml
 kubectl get pod web-gpu -n scheduling-lab
 kubectl describe pod web-gpu -n scheduling-lab
 ```
@@ -52,7 +52,7 @@ Control-plane taint yüzünden, iki worker ise etiket uyuşmadığı için elenm
 ## Adım 4: Deployment ile
 
 ```bash
-kubectl apply -f NodeSelector/deployment-nodeselector.yaml
+kubectl apply -f NodeSelector/3-deployment-nodeselector.yaml
 kubectl get pods -n scheduling-lab -l app=web-ssd -o wide
 ```
 

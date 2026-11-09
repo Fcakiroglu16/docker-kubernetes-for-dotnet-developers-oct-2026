@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-near-cache
+  namespace: scheduling-lab
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-near-cache
+  template:
+    metadata:
+      labels:
+        app: web-near-cache
+    spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:   # Zorunlu: app=cache Pod'unun olduğu node'a yerleş
+            - labelSelector:
+                matchLabels:
+                  app: cache
+              topologyKey: kubernetes.io/hostname           # "Aynı yer" = aynı node
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

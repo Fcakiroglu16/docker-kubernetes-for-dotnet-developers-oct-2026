@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-spread
+  namespace: scheduling-lab
+spec:
+  replicas: 3                               # Yerleşebilir 2 node var -> 3. replika Pending kalır
+  selector:
+    matchLabels:
+      app: web-spread
+  template:
+    metadata:
+      labels:
+        app: web-spread
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:   # Zorunlu: app=web-spread Pod'u olan node'a yerleşme
+            - labelSelector:
+                matchLabels:
+                  app: web-spread
+              topologyKey: kubernetes.io/hostname           # Her node'da en fazla 1 replika
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

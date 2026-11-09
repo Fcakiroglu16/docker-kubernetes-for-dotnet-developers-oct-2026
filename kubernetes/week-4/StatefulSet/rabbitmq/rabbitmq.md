@@ -6,11 +6,11 @@ Tüm komutlar repo kök klasöründen çalıştırılır. Namespace ve quota iç
 
 | Dosya | Görevi |
 |---|---|
-| [rabbitmq-secret.yaml](rabbitmq-secret.yaml) | Varsayılan kullanıcı/şifre ve Erlang cookie |
-| [rabbitmq-configmap.yaml](rabbitmq-configmap.yaml) | Küme üyelerini listeleyen `10-cluster.conf` |
-| [rabbitmq-headless-service.yaml](rabbitmq-headless-service.yaml) | `clusterIP: None` Service (5672, 15672, 4369, 25672) |
-| [rabbitmq-statefulset.yaml](rabbitmq-statefulset.yaml) | 3 node, her biri 1Gi PVC alır |
-| [rabbitmq-nodeport-service.yaml](rabbitmq-nodeport-service.yaml) | Dış erişim: AMQP 30672, yönetim arayüzü 31672 |
+| [1-rabbitmq-secret.yaml](1-rabbitmq-secret.yaml) | Varsayılan kullanıcı/şifre ve Erlang cookie |
+| [2-rabbitmq-configmap.yaml](2-rabbitmq-configmap.yaml) | Küme üyelerini listeleyen `10-cluster.conf` |
+| [3-rabbitmq-headless-service.yaml](3-rabbitmq-headless-service.yaml) | `clusterIP: None` Service (5672, 15672, 4369, 25672) |
+| [4-rabbitmq-statefulset.yaml](4-rabbitmq-statefulset.yaml) | 3 node, her biri 1Gi PVC alır |
+| [5-rabbitmq-nodeport-service.yaml](5-rabbitmq-nodeport-service.yaml) | Dış erişim: AMQP 30672, yönetim arayüzü 31672 |
 
 ## Kur
 

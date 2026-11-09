@@ -6,9 +6,9 @@ Tüm komutlar repo kök klasöründen çalıştırılır. Namespace ve quota iç
 
 | Dosya | Görevi |
 |---|---|
-| [redis-headless-service.yaml](redis/redis-headless-service.yaml) | `clusterIP: None` Service |
-| [redis-statefulset.yaml](redis/redis-statefulset.yaml) | 3 Redis Pod'u: `redis-0` master, `redis-1` ve `redis-2` replica. Her biri 1Gi PVC alır |
-| [redis-client.yaml](redis/redis-client.yaml) | `redis-cli` ve `nslookup` içeren istemci Pod |
+| [1-redis-headless-service.yaml](redis/1-redis-headless-service.yaml) | `clusterIP: None` Service |
+| [2-redis-statefulset.yaml](redis/2-redis-statefulset.yaml) | 3 Redis Pod'u: `redis-0` master, `redis-1` ve `redis-2` replica. Her biri 1Gi PVC alır |
+| [4-redis-client.yaml](redis/4-redis-client.yaml) | `redis-cli` ve `nslookup` içeren istemci Pod |
 
 ## Kur
 

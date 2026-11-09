@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-affinity-deploy
+  namespace: scheduling-lab
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: web-affinity
+  template:
+    metadata:
+      labels:
+        app: web-affinity
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:   # Zorunlu: control-plane'e asla gitme
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+          preferredDuringSchedulingIgnoredDuringExecution:  # Tercih: SSD'li node'a git
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: disktype
+                    operator: Exists
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

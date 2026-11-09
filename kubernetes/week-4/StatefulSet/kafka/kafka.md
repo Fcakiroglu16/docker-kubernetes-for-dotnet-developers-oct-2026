@@ -6,9 +6,9 @@ Tüm komutlar repo kök klasöründen çalıştırılır. Namespace ve quota iç
 
 | Dosya | Görevi |
 |---|---|
-| [kafka-headless-service.yaml](kafka-headless-service.yaml) | `clusterIP: None` Service (9092 broker, 9093 controller) |
-| [kafka-statefulset.yaml](kafka-statefulset.yaml) | 3 broker, her biri 1Gi PVC alır |
-| [kafka-client.yaml](kafka-client.yaml) | Kafka komut satırı araçlarını içeren istemci Pod |
+| [1-kafka-headless-service.yaml](1-kafka-headless-service.yaml) | `clusterIP: None` Service (9092 broker, 9093 controller) |
+| [2-kafka-statefulset.yaml](2-kafka-statefulset.yaml) | 3 broker, her biri 1Gi PVC alır |
+| [4-kafka-client.yaml](4-kafka-client.yaml) | Kafka komut satırı araçlarını içeren istemci Pod |
 
 ## Kur
 

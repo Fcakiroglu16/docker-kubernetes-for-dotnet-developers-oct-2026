@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-plain
+  namespace: scheduling-lab
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: web-plain
+  template:
+    metadata:
+      labels:
+        app: web-plain
+    spec:                                   # Toleration yok: taint'li node'a yerleşemez
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

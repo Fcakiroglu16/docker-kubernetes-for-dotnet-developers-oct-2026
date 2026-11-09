@@ -6,12 +6,12 @@ Tüm komutlar repo kök klasöründen çalıştırılır. Namespace ve quota iç
 
 | Dosya | Görevi |
 |---|---|
-| [postgres-secret.yaml](postgres-secret.yaml) | Postgres ve replication kullanıcısının şifresi |
-| [postgres-configmap.yaml](postgres-configmap.yaml) | Primary'de `replicator` rolünü ve `pg_hba.conf` kaydını oluşturan init script |
-| [postgres-headless-service.yaml](postgres-headless-service.yaml) | `clusterIP: None` Service, Pod DNS adları için |
-| [postgres-primary-service.yaml](postgres-primary-service.yaml) | Sadece `postgres-0`'a giden ClusterIP Service (yazma) |
-| [postgres-nodeport-service.yaml](postgres-nodeport-service.yaml) | Primary'yi dışarı açar (30432) |
-| [postgres-statefulset.yaml](postgres-statefulset.yaml) | 3 Pod, her biri 1Gi PVC alır |
+| [1-postgres-secret.yaml](1-postgres-secret.yaml) | Postgres ve replication kullanıcısının şifresi |
+| [2-postgres-configmap.yaml](2-postgres-configmap.yaml) | Primary'de `replicator` rolünü ve `pg_hba.conf` kaydını oluşturan init script |
+| [3-postgres-headless-service.yaml](3-postgres-headless-service.yaml) | `clusterIP: None` Service, Pod DNS adları için |
+| [4-postgres-statefulset.yaml](4-postgres-statefulset.yaml) | 3 Pod, her biri 1Gi PVC alır |
+| [5-postgres-primary-service.yaml](5-postgres-primary-service.yaml) | Sadece `postgres-0`'a giden ClusterIP Service (yazma) |
+| [6-postgres-nodeport-service.yaml](6-postgres-nodeport-service.yaml) | Primary'yi dışarı açar (30432) |
 
 ## Kur
 

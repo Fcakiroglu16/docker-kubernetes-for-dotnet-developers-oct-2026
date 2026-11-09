@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-required
+  namespace: scheduling-lab
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:   # Zorunlu kural: uymayan node'a yerleşmez
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: disktype
+                operator: In                            # nodeSelector'da olmayan operatör: değerlerden biri yeterli
+                values: ["ssd", "nvme"]
+  containers:
+    - name: web
+      image: nginx:1.27-alpine
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

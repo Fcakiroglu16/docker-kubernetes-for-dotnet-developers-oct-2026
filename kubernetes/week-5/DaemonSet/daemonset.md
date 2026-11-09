@@ -9,14 +9,14 @@ Komutlar `kubernetes/week-6` klasöründen çalıştırılır.
 | Dosya | Görevi |
 |---|---|
 | [../Namespace/namespace.yaml](../Namespace/namespace.yaml) | `scheduling-lab` namespace'i |
-| [log-agent-daemonset.yaml](log-agent-daemonset.yaml) | Tüm node'larda çalışan DaemonSet (control-plane dahil) |
-| [log-agent-ssd-daemonset.yaml](log-agent-ssd-daemonset.yaml) | Sadece `disktype=ssd` etiketli node'larda çalışan DaemonSet |
+| [1-log-agent-daemonset.yaml](1-log-agent-daemonset.yaml) | Tüm node'larda çalışan DaemonSet (control-plane dahil) |
+| [2-log-agent-ssd-daemonset.yaml](2-log-agent-ssd-daemonset.yaml) | Sadece `disktype=ssd` etiketli node'larda çalışan DaemonSet |
 
 ## Adım 1: Namespace ve DaemonSet
 
 ```bash
 kubectl apply -f Namespace/namespace.yaml
-kubectl apply -f DaemonSet/log-agent-daemonset.yaml
+kubectl apply -f DaemonSet/1-log-agent-daemonset.yaml
 kubectl rollout status ds/log-agent -n scheduling-lab
 kubectl get pods -n scheduling-lab -o wide
 ```
@@ -40,7 +40,7 @@ kubectl logs -n scheduling-lab ds/log-agent --tail=2
 `log-agent-ssd` DaemonSet'i `nodeSelector: disktype=ssd` kullanır. Etiketli node yokken hiç Pod açılmaz:
 
 ```bash
-kubectl apply -f DaemonSet/log-agent-ssd-daemonset.yaml
+kubectl apply -f DaemonSet/2-log-agent-ssd-daemonset.yaml
 kubectl get ds log-agent-ssd -n scheduling-lab
 ```
 
@@ -75,7 +75,7 @@ kubectl rollout undo ds/log-agent -n scheduling-lab
 ## Temizlik
 
 ```bash
-kubectl delete -f DaemonSet/log-agent-daemonset.yaml
-kubectl delete -f DaemonSet/log-agent-ssd-daemonset.yaml --ignore-not-found
+kubectl delete -f DaemonSet/1-log-agent-daemonset.yaml
+kubectl delete -f DaemonSet/2-log-agent-ssd-daemonset.yaml --ignore-not-found
 kubectl label node desktop-worker disktype- --ignore-not-found
 ```

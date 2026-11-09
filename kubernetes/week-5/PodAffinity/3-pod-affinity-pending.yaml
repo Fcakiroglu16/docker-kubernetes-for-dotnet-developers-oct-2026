@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-near-db
+  namespace: scheduling-lab
+spec:
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:       # Cluster'da app=db Pod'u yok -> Pod Pending kalır
+        - labelSelector:
+            matchLabels:
+              app: db
+          topologyKey: kubernetes.io/hostname
+  containers:
+    - name: web
+      image: nginx:1.27-alpine
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
