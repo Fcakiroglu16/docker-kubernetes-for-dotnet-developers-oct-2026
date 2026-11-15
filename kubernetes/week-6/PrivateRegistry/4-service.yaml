@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: week6-api
+  namespace: week6
+spec:
+  # NodePort: her node'un public IP'sinin 30080 portundan erişilir.
+  # Hetzner firewall'u 30000-32767 aralığını açık tutar.
+  type: NodePort
+  selector:
+    app: week6-api
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080

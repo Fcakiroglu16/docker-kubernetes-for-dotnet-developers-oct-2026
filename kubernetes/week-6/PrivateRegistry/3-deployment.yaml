@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: week6-api
+  namespace: week6
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: week6-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1 # yeni sürümde önce 1 fazla pod açılır
+      maxUnavailable: 0 # yeni pod hazır olmadan eski pod kapatılmaz
+  template:
+    metadata:
+      labels:
+        app: week6-api
+    spec:
+      # GHCR'deki private image'ı çekmek için kullanılan secret.
+      # Secret olmadan pod ImagePullBackOff durumunda kalır.
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: week6-api
+          # GitHub Actions bu satırdaki "latest" etiketini commit'e özel etiketle (sha-xxxxxxx) değiştirir.
+          image: ghcr.io/fcakiroglu16/week6-api:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10

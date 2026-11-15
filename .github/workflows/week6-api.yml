@@ -1,0 +1,122 @@
+# Week6.API: main'e her merge'de image'ı build edip GHCR'ye gönderir ve Hetzner k3s cluster'ına deploy eder.
+# Adımların açıklaması: kubernetes/week-6/PrivateRegistry/private-registry.md
+#
+# "uses:" hazır bir GitHub Action'ı çalıştırır. Biçimi: <github-kullanıcısı>/<repo>@<sürüm>.
+# Action'ın kodu o repodan indirilir. "with:" altındaki değerler action'a parametre olarak verilir.
+# "run:" ise runner üzerinde doğrudan shell komutu çalıştırır.
+name: week6-api
+
+on:
+  push:
+    branches: [main]
+    paths: # sadece bu dosyalar değişince çalışır
+      - "kubernetes/week-6/PrivateRegistry/**"
+      - "!kubernetes/week-6/PrivateRegistry/**/*.md" # doküman değişikliği deploy tetiklemez
+      - ".github/workflows/week6-api.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write # GITHUB_TOKEN ile GHCR'ye image göndermek için
+
+# Aynı anda iki deploy çalışmasın. Yeni çalışma, öncekinin bitmesini bekler.
+concurrency:
+  group: week6-api-deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/fcakiroglu16/week6-api # GHCR adları küçük harf olmalı
+  APP_DIR: kubernetes/week-6/PrivateRegistry
+  NAMESPACE: week6
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+    steps:
+      # Repoyu runner'a indirir. Runner boş bir makine olarak başlar, Dockerfile ve kod bu adımla gelir.
+      - uses: actions/checkout@v7
+
+      # Her commit'e özel, değişmeyen bir etiket: sha-1a2b3c4
+      - name: Image etiketi
+        id: vars
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # Docker Buildx'i kurar. Buildx, farklı mimari (linux/amd64) için build almayı ve
+      # aşağıdaki build cache'ini (type=gha) kullanmayı sağlar.
+      - uses: docker/setup-buildx-action@v4
+
+      # "docker login ghcr.io" yapar. Kullanıcı adı workflow'u tetikleyen kişi, şifre ise
+      # GitHub'ın her çalışma için otomatik ürettiği GITHUB_TOKEN'dır. İş bitince token geçersiz olur.
+      - name: GHCR'ye giriş
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # "docker build" ve "docker push" komutlarını tek adımda yapar.
+      # context: Dockerfile'ın bulunduğu klasör. tags: image'a verilecek etiketler.
+      # cache-from/cache-to: katmanları GitHub Actions cache'inde saklar, sonraki build'ler hızlanır.
+      - name: Build ve push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ env.APP_DIR }}/Week6.API
+          platforms: linux/amd64 # Hetzner cx23 node'ları amd64
+          push: true
+          build-args: APP_VERSION=${{ steps.vars.outputs.tag }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.vars.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      # Her job ayrı bir runner'da çalışır. Deployment ve service yaml'ları için repo tekrar indirilir.
+      - uses: actions/checkout@v7
+
+      # kubectl'i runner'a kurar ve PATH'e ekler. Sürüm verilmezse en güncel kararlı sürümü kurar.
+      - uses: azure/setup-kubectl@v5
+
+      - name: kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          printf '%s' "$KUBE_CONFIG" > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl auth whoami
+
+      # Cluster'ın private image'ı çekebilmesi için docker-registry secret'ı.
+      # Her çalışmada güncellenir, token değişirse GitHub secret'ını güncellemek yeterli.
+      - name: Image pull secret
+        env:
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          if [ -z "$GHCR_PULL_TOKEN" ]; then
+            echo "::error::GHCR_PULL_TOKEN secret'ı tanımlı değil"
+            exit 1
+          fi
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --namespace "$NAMESPACE" \
+            --docker-server=ghcr.io \
+            --docker-username=fcakiroglu16 \
+            --docker-password="$GHCR_PULL_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy
+        run: |
+          sed -i "s|${IMAGE}:latest|${IMAGE}:${TAG}|" "$APP_DIR/3-deployment.yaml"
+          grep "image:" "$APP_DIR/3-deployment.yaml"
+          kubectl apply -f "$APP_DIR/3-deployment.yaml" -f "$APP_DIR/4-service.yaml"
+          kubectl -n "$NAMESPACE" rollout status deployment/week6-api --timeout=180s
+
+      - name: Durum
+        if: always()
+        run: kubectl -n "$NAMESPACE" get deploy,rs,pods,svc -o wide

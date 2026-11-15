@@ -1,0 +1,67 @@
+---
+# hetzner-k3s cluster config. Her ayarın açıklaması hetzner-k3s.md dosyasında, "5. Config dosyası" bölümünde.
+# Token bu dosyada tutulmaz. HCLOUD_TOKEN ortam değişkeni ile verilir.
+
+# --- Genel ayarlar ---
+cluster_name: egitim # Hetzner'deki tüm kaynak adlarının ön eki (egitim-master1, egitim network'ü...)
+kubeconfig_path: "./kubeconfig" # kubectl'in kullanacağı dosya, komutun çalıştığı klasöre yazılır
+k3s_version: v1.37.2+k3s1 # "hetzner-k3s releases" ile listelenir, sabit sürüm kullanılır
+config_format_version: 1 # config şemasının sürümü, araç tarafından kullanılır
+
+# --- Ağ ayarları ---
+networking:
+  ssh: # araç node'lara SSH ile bağlanıp k3s'i kurar
+    port: 22
+    use_agent: false # anahtarın passphrase'i varsa true yapın
+    public_key_path: "~/.ssh/hetzner_k3s.pub" # Hetzner'e yüklenir, sunuculara eklenir
+    private_key_path: "~/.ssh/hetzner_k3s" # araç bu anahtarla bağlanır, makinenizden çıkmaz
+  allowed_networks:
+    ssh: # 22 portuna sadece bu IP'ler erişebilir
+      - 78.162.65.17/32
+    api: # 6443 (Kubernetes API) herkese açık: GitHub Actions runner IP'leri sabit değil.
+      # Erişim token ile korunur. Bkz. PrivateRegistry/private-registry.md
+      - 0.0.0.0/0
+      - ::/0
+  public_network:
+    ipv4: true # internete çıkış (imaj çekme, apt) için gerekli, IP başına aylık ücretli
+    ipv6: true # ücretsiz
+  private_network:
+    enabled: true # node'lar arası trafik internete çıkmadan 10.0.x.x üzerinden akar
+    subnet: 10.0.0.0/16
+  cni:
+    enabled: true
+    encryption: false # trafik zaten izole private network'te, şifreleme ek yük getirir
+    mode: flannel # k3s'in varsayılan, hafif CNI'ı
+
+# --- Cluster durumunun tutulduğu yer ---
+datastore:
+  mode: etcd # master'da gömülü etcd, ileride 3 master'a (HA) geçmeye izin verir
+
+# Uygulama pod'ları sadece worker'larda çalışır
+schedule_workloads_on_masters: false
+
+# --- Node'lar ---
+masters_pool:
+  instance_type: cx23 # 2 vCPU, 4 GB RAM, 40 GB disk
+  instance_count: 1 # HA değildir. HA için 3 (tek sayı) gerekir.
+  locations:
+    - fsn1
+
+worker_node_pools:
+  - name: worker # node adları: egitim-pool-worker-worker1, -worker2
+    instance_type: cx23
+    instance_count: 2
+    location: fsn1 # master ile aynı lokasyon
+
+# --- Eklentiler ---
+# Varsayılan olarak açık: cloud_controller_manager, csi_driver, system_upgrade_controller
+# Varsayılan olarak kapalı: traefik, servicelb, metrics_server
+addons:
+  cluster_autoscaler:
+    enabled: false # autoscaling pool yok
+
+# "hetzner-k3s delete" komutunu engeller. Silmeden önce false yapın.
+protect_against_deletion: true
+
+# Tek master'da API için load balancer gerekmez (aylık ek ücret)
+create_load_balancer_for_the_kubernetes_api: false
