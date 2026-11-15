@@ -45,3 +45,10 @@ spec:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
+          # Pod kapanırken önce 5 saniye bekler, sonra uygulamaya SIGTERM gönderilir.
+          # Bu sürede pod Service'ten çıkarılır ve kube-proxy'ler trafiği göndermeyi bırakır.
+          # Bekleme olmadan, rolling update sırasında kapanan pod'a giden istekler başarısız olur.
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
