@@ -28,7 +28,11 @@ Image private'tır. Kubernetes onu bir **image pull secret** ile çeker.
                  │ week6-api          │    ┌──────────────────────────┐
                  └────────────────────┘    │ k3s cluster              │
                                            │ namespace: week6         │
-                                           │ 3 pod  ◄── NodePort 30080│
+                                           │ 3 pod                    │
+                                           └────────────▲─────────────┘
+                                                        │ private network
+                                           ┌────────────┴─────────────┐
+           Kullanıcı ── http://<lb-ip>/ ──►│ Hetzner Load Balancer :80│
                                            └──────────────────────────┘
 ```
 
@@ -352,26 +356,74 @@ Deployment'ta `latest` kalsaydı:
 
 ---
 
-## 8. Service
+## 8. Service (Hetzner Load Balancer)
 
 [`4-service.yaml`](4-service.yaml)
 
 ```yaml
+metadata:
+  annotations:
+    load-balancer.hetzner.cloud/name: week6-api
+    load-balancer.hetzner.cloud/location: fsn1
+    load-balancer.hetzner.cloud/type: lb11
+    load-balancer.hetzner.cloud/use-private-ip: "true"
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: week6-api
   ports:
     - port: 80
       targetPort: 8080
-      nodePort: 30080
 ```
 
-- `type: NodePort`: Uygulama her node'un public IP'sinin `30080` portundan erişilebilir olur.
-  hetzner-k3s firewall'u 30000-32767 aralığını açık tutar.
-- `targetPort: 8080`: .NET container'ının dinlediği port (`EXPOSE 8080`).
-- `LoadBalancer` tipi neden kullanılmadı? Hetzner'de ücretli bir Load Balancer açar (aylık ~7,89 €).
-  Test için NodePort yeterlidir.
+`type: LoadBalancer` olan bir Service oluşunca **Hetzner Cloud Controller Manager (CCM)** Hetzner'de
+bir Load Balancer açar ve public IP'sini Service'in `EXTERNAL-IP` alanına yazar. Kullanıcılar
+uygulamaya tek ve sabit bir IP'den, 80 portundan ulaşır.
+
+### NodePort yerine neden LoadBalancer?
+
+| | NodePort | LoadBalancer |
+|---|---|---|
+| Adres | Herhangi bir node'un IP'si + `30080` | Tek bir LB IP'si + `80` |
+| Node kapanırsa | O node'un IP'sini kullanan istemciler erişemez | LB sağlıksız node'a trafik göndermez |
+| Node eklenip çıkınca | İstemciler yeni IP'leri bilmeli | CCM LB hedeflerini kendisi günceller |
+| DNS | Bir node IP'sine bağlanır | LB IP'sine bağlanır, IP değişmez |
+| Maliyet | Ücretsiz | `lb11` aylık 7,89 € |
+
+### Annotation'lar
+
+| Annotation | Ne yapar |
+|---|---|
+| `load-balancer.hetzner.cloud/location` | **Zorunlu.** LB'nin açılacağı lokasyon. Node'larla aynı olmalı. Yazılmazsa LB oluşmaz. |
+| `load-balancer.hetzner.cloud/type` | LB tipi. `lb11` en küçüğüdür: en fazla 25 hedef (node), 5 servis (port), 10.000 eş zamanlı bağlantı. Aylık 7,89 €. |
+| `load-balancer.hetzner.cloud/name` | Hetzner Console'daki LB adı. Yazılmazsa rastgele bir ad verilir. |
+| `load-balancer.hetzner.cloud/use-private-ip` | LB node'lara private network (`10.0.x.x`) üzerinden bağlanır. Trafik internete çıkmaz ve ücretsiz kotadan düşmez. |
+
+### Trafik nasıl akar?
+
+```text
+İstemci ──► LB 2.31.101.239:80 ──► node 10.0.0.x:30080 (NodePort) ──► kube-proxy ──► pod :8080
+```
+
+1. LB isteği round-robin ile bir node'a, private network üzerinden gönderir.
+2. Node'daki NodePort isteği alır. LoadBalancer Service arka planda bir NodePort da açar.
+3. kube-proxy isteği `app: week6-api` label'lı pod'lardan birine iletir. Pod başka bir node'da olabilir.
+
+LB her node'u sağlık kontrolü ile izler (NodePort'a TCP bağlantısı). Cevap vermeyen node'a trafik
+göndermez.
+
+**Not:** CCM tüm node'ları LB'ye hedef olarak ekler, master da dahil. Master'da uygulama pod'u yoktur,
+ama gelen isteği kube-proxy ile worker'daki pod'a iletir. Master'ı hedeflerden çıkarmak için master
+node'a `node.kubernetes.io/exclude-from-external-load-balancers` label'ını ekleyebilirsiniz.
+
+**Not:** LoadBalancer Service'in arka planda açtığı NodePort (`30080`) hâlâ node'ların public IP'leri
+üzerinden de erişilebilir (`curl http://<node-public-ip>:30080/` → `200`). Çünkü hetzner-k3s firewall'u
+30000-32767 aralığını internete açık tutar. Trafiği sadece LB üzerinden kabul etmek için
+`hetzner-k3s/cluster.yaml` içinde `networking.node_port_firewall_enabled: false` yapın. LB node'lara
+`use-private-ip` ile private network'ten bağlandığı ve Hetzner firewall'u private network trafiğine
+uygulanmadığı için LB'nin etkilenmemesi gerekir. Bu ayar bu rehberde test edilmedi.
+
+**Dikkat:** `hetzner-k3s delete` bu LB'yi silmez. Cluster'ı silmeden önce Service'i silin. Bkz. [Temizlik](#temizlik).
 
 ---
 
@@ -537,18 +589,87 @@ ghcr-pull-secret   kubernetes.io/dockerconfigjson   1
 [{"name":"ghcr-pull-secret"}]
 ```
 
-API'yi herhangi bir node'un public IP'si üzerinden çağırın:
+### Load Balancer'ı doğrulayın
+
+CCM'in LB'yi oluşturması birkaç saniye sürer. `EXTERNAL-IP` dolana kadar bekleyin:
 
 ```bash
-curl http://<node-public-ip>:30080/
+kubectl -n week6 get svc week6-api -w
+```
+
+```text
+NAME        TYPE           CLUSTER-IP      EXTERNAL-IP                                   PORT(S)
+week6-api   LoadBalancer   10.43.176.185   10.0.0.6,2.31.101.239,2a01:4f8:c015:e919::1   80:30080/TCP
+```
+
+`EXTERNAL-IP` üç adres içerir:
+
+| Adres | Ne |
+|---|---|
+| `10.0.0.6` | LB'nin private network IP'si. Node'lara bu IP'den bağlanır. |
+| `2.31.101.239` | LB'nin public IPv4 adresi. **Kullanıcılar bu adresi kullanır.** |
+| `2a01:4f8:c015:e919::1` | LB'nin public IPv6 adresi |
+
+CCM'in olayları:
+
+```bash
+kubectl -n week6 get events --field-selector involvedObject.kind=Service
+```
+
+```text
+EnsuringLoadBalancer   Ensuring load balancer
+EnsuredLoadBalancer    Ensured load balancer
+```
+
+Hetzner tarafında LB ve hedeflerin sağlık durumu:
+
+```bash
+hcloud load-balancer list
+hcloud load-balancer describe week6-api
+```
+
+```text
+NAME        HEALTH    IPV4           TYPE   LOCATION
+week6-api   healthy   2.31.101.239   lb11   fsn1
+```
+
+`describe` çıktısında 4 node da `private` IP ile ve `healthy` olarak görünür. LB ilk açıldığında
+health birkaç saniye `mixed` görünebilir. Sağlık kontrolleri tamamlanınca `healthy` olur.
+
+### Dışarıdan erişin
+
+Cluster dışındaki herhangi bir makineden:
+
+```bash
+curl http://2.31.101.239/
 ```
 
 ```json
-{"message":"Week6.API çalışıyor","version":"sha-45c0c53","pod":"week6-api-fdf497d79-s52nv"}
+{"message":"Week6.API çalışıyor","version":"sha-ae05b19","pod":"week6-api-7878c67965-9htlw"}
 ```
 
-`version` alanı deploy edilen commit'i gösterir. Master'ın IP'si de cevap verir, çünkü NodePort her
-node'da açılır. İstek pod'un çalıştığı worker'a cluster içinden yönlendirilir.
+```bash
+curl http://2.31.101.239/health
+```
+
+```text
+Healthy
+```
+
+İsteklerin pod'lara dağıldığını görmek için birkaç kez çağırın:
+
+```bash
+for i in $(seq 1 12); do curl -s http://2.31.101.239/ | jq -r .pod; done | sort | uniq -c
+```
+
+```text
+   6 week6-api-7878c67965-9htlw
+   1 week6-api-7878c67965-ht9fp
+   5 week6-api-7878c67965-mkpxs
+```
+
+`version` alanı deploy edilen commit'i gösterir. Dağılım tam eşit değildir, çünkü dağıtım iki
+aşamalıdır: LB node seçer, kube-proxy pod seçer.
 
 ---
 
@@ -710,7 +831,7 @@ Geçişi API üzerinden izleyebilirsiniz. Rolling update sırasında cevaplar es
 karışık gelir, sonra hepsi yeni sürüme geçer:
 
 ```bash
-while true; do curl -s http://<node-public-ip>:30080/ | jq -r .version; sleep 0.5; done
+while true; do curl -s http://<lb-ip>/ | jq -r .version; sleep 0.5; done
 ```
 
 ```text
@@ -773,6 +894,8 @@ görülmedi:
 | Workflow `GHCR_PULL_TOKEN secret'ı tanımlı değil` | Secret eklenmemiş | `gh secret list` |
 | Build adımında `denied: permission_denied` | Workflow'da `packages: write` yok | `permissions` bloğu |
 | `rollout status` zaman aşımı | Pod `/health` probe'unu geçemiyor | `kubectl -n week6 describe pod <pod>` |
+| `EXTERNAL-IP` sürekli `<pending>` | `location` annotation'ı yok veya CCM hata veriyor | `kubectl -n week6 describe svc week6-api` olayları, `kubectl -n kube-system logs deploy/hcloud-cloud-controller-manager` |
+| LB health `unhealthy` | Node'lara NodePort üzerinden ulaşılamıyor | `hcloud load-balancer describe week6-api`, pod'lar `Running` mi |
 
 ## Temizlik
 
@@ -784,6 +907,16 @@ kubectl delete namespace week6
 
 Namespace silinince içindeki deployment, service, pull secret, ServiceAccount ve token da silinir.
 GitHub'daki `KUBE_CONFIG` secret'ı geçersiz hale gelir.
+
+Service silinince CCM Hetzner Load Balancer'ı da siler. Kontrol edin, listede `week6-api` kalmamalı:
+
+```bash
+hcloud load-balancer list
+```
+
+**Bu sırayı koruyun:** Önce namespace'i (veya Service'i), sonra cluster'ı silin. Cluster önce silinirse
+LB'yi silecek CCM kalmaz ve LB ücretlendirilmeye devam eder. Bu durumda
+`hcloud load-balancer delete week6-api` ile elle silin.
 
 GitHub tarafı:
 
