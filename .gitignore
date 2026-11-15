@@ -402,3 +402,6 @@ FodyWeavers.xsd
 # hetzner-k3s
 kubernetes/week-6/hetzner-k3s/kubeconfig
 kubernetes/week-6/hetzner-k3s/*.log
+
+# macOS
+.DS_Store
