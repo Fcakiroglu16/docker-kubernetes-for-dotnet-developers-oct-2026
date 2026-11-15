@@ -324,6 +324,10 @@ spec:
       containers:
         - name: week6-api
           image: ghcr.io/fcakiroglu16/week6-api:latest
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
 ```
 
 | Ayar | Neden |
@@ -335,6 +339,7 @@ spec:
 | `readinessProbe` | Pod `/health` cevap verene kadar trafik almaz. Rolling update bunu bekler. |
 | `livenessProbe` | `/health` cevap vermezse container yeniden başlatılır |
 | `resources` | Scheduler pod'u yeterli kaynağı olan node'a yerleştirir |
+| `lifecycle.preStop.sleep` | Pod kapanmadan önce 5 saniye bekler. Rolling update sırasında istek kaybını önler, bkz. [13.3](#133-kesintisiz-geçiş-prestop). |
 
 **Neden `latest` yerine commit etiketi?** `latest` her push'ta başka bir image'ı gösterir.
 Deployment'ta `latest` kalsaydı:
@@ -649,6 +654,111 @@ Bu şu anlama gelir: Private image bir kez cluster'a girdiyse, aynı cluster'dak
 namespace'teki herhangi bir pod onu secret olmadan çalıştırabilir. Pull secret, image'ın cluster'a
 **ilk** girişini korur, cluster içindeki erişimi korumaz. Cluster'ı farklı ekiplerle paylaşıyorsanız
 bu özelliği kapatmayı değerlendirin.
+
+---
+
+## 13. Yeni sürüm yayınlama
+
+Yeni sürüm için ayrı bir işlem gerekmez. API kodunda veya yaml'larda yapılan değişiklik main'e merge
+edildiğinde workflow çalışır, yeni commit etiketiyle image üretir ve deployment'ı günceller.
+
+### 13.1 Değişikliği main'e gönderin
+
+```bash
+git commit -am "Week6.API: yeni özellik"
+git push origin main
+```
+
+PR ile çalışıyorsanız, PR'ı main'e merge etmek aynı sonucu verir.
+
+Elle tetiklemek için (örneğin kod değişmeden yeniden deploy):
+
+```bash
+gh workflow run week6-api.yml --ref main
+```
+
+Not: Elle tetikleme aynı commit üzerinde çalışırsa etiket de aynı kalır (`sha-...`). Deployment
+değişmediği için rollout başlamaz. Yeni pod'lar istiyorsanız `kubectl rollout restart` kullanın.
+
+### 13.2 Ne oldu?
+
+```bash
+kubectl -n week6 get deploy week6-api -o wide
+kubectl -n week6 rollout history deploy/week6-api
+```
+
+```text
+READY   IMAGES
+3/3     ghcr.io/fcakiroglu16/week6-api:sha-605a99a
+
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+```
+
+Her deploy yeni bir revision oluşturur. Önceki sürüme dönmek için:
+
+```bash
+kubectl -n week6 rollout undo deploy/week6-api
+```
+
+Bu komut önceki revision'ın image etiketine (`sha-45c0c53`) döner. Etiketler değişmediği için
+geri dönülen image, o commit'in birebir aynısıdır. Not: Bir sonraki main merge'ü tekrar en son
+sürümü deploy eder.
+
+Geçişi API üzerinden izleyebilirsiniz. Rolling update sırasında cevaplar eski ve yeni sürüm arasında
+karışık gelir, sonra hepsi yeni sürüme geçer:
+
+```bash
+while true; do curl -s http://<node-public-ip>:30080/ | jq -r .version; sleep 0.5; done
+```
+
+```text
+sha-45c0c53
+sha-45c0c53
+sha-605a99a
+sha-45c0c53
+sha-605a99a
+sha-605a99a
+```
+
+### 13.3 Kesintisiz geçiş: preStop
+
+İlk testte, `preStop` olmadan yapılan bir rollout sırasında 102 istekten 1'i başarısız oldu
+(`curl` zaman aşımı). `maxUnavailable: 0` olmasına rağmen bu olur. Nedeni, pod kapanırken iki işin
+**aynı anda** başlamasıdır:
+
+1. kubelet container'a SIGTERM gönderir. .NET uygulaması hemen yeni bağlantı almayı bırakır.
+2. Pod Service endpoint'lerinden çıkarılır. Her node'daki kube-proxy bu değişikliği birkaç yüz
+   milisaniye ile birkaç saniye arasında bir gecikmeyle öğrenir.
+
+İkincisi birinciden geç kalırsa, kube-proxy kapanmış pod'a istek göndermeye devam eder ve istek başarısız olur.
+
+Çözüm, SIGTERM'den önce kısa bir bekleme eklemektir:
+
+```yaml
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+```
+
+Pod kapanırken önce `preStop` çalışır, 5 saniye beklenir, sonra SIGTERM gönderilir. Bu sürede pod
+endpoint'lerden çıkmış ve kube-proxy'ler güncellenmiş olur. `sleep` aksiyonu Kubernetes'in kendi
+özelliğidir, image'da `sleep` komutu olmasını gerektirmez.
+
+Bu bekleme `terminationGracePeriodSeconds` (varsayılan 30 saniye) süresinin içinden düşer.
+
+**Dikkat:** `preStop` sadece kendisiyle **birlikte oluşturulan** pod'lara uygulanır. `preStop`'u
+ekleyen deploy sırasında kapanan pod'lar eski şablondan geldiği için bu deploy'da yine istek kaybı
+olabilir. Testte bu deploy sırasında 145 istekten 3'ü başarısız oldu. Sonraki rollout'larda hata
+görülmedi:
+
+| Test | preStop | Başarısız / toplam istek |
+|---|---|---|
+| Workflow ile deploy (`sha-45c0c53` → `sha-605a99a`) | yok | 1 / 102 |
+| preStop'u ekleyen deploy (`sha-605a99a` → `sha-51bb46f`) | yeni pod'larda var, kapanan pod'larda yok | 3 / 145 |
+| 2 × `kubectl rollout restart` | var | 0 / 144 |
 
 ---
 
