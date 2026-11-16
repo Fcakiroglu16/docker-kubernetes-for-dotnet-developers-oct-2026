@@ -59,6 +59,8 @@ worker_node_pools:
 addons:
   cluster_autoscaler:
     enabled: false # autoscaling pool yok
+  traefik:
+    enabled: true # Gateway API controller olarak kullanılır. Bkz. GatewayAPI/gateway-api.md
 
 # "hetzner-k3s delete" komutunu engeller. Silmeden önce false yapın.
 protect_against_deletion: true

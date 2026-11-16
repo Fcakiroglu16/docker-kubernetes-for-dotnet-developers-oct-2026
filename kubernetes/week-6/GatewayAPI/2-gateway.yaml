@@ -1,0 +1,17 @@
+# Giriş noktası: hangi port ve hangi alan adı için trafik kabul edileceği.
+# Trafiği gerçekte karşılayan, gatewayClassName ile seçilen controller'dır (Traefik).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: week6-gateway
+  namespace: week6
+spec:
+  gatewayClassName: traefik # "kubectl get gatewayclass" ile görünen Traefik GatewayClass'ı
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 8000 # Traefik'in "web" entrypoint'i. Dışarıda LB'nin 80 portu buraya gelir.
+      hostname: order.kiteloomstudio.com # sadece bu alan adına gelen istekler kabul edilir
+      allowedRoutes:
+        namespaces:
+          from: Same # sadece week6 namespace'indeki HTTPRoute'lar bu Gateway'e bağlanabilir

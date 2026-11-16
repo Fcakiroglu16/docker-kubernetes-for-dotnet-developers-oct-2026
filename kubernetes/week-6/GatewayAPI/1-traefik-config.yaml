@@ -1,0 +1,23 @@
+# k3s'in kendi Traefik kurulumunun ayarları.
+# k3s, Traefik'i bir HelmChart olarak kurar. HelmChartConfig, o chart'ın values'larını değiştirir.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik # k3s'in Traefik HelmChart'ının adı, değiştirilemez
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      # Traefik'in Gateway API kaynaklarını (Gateway, HTTPRoute) okumasını sağlar.
+      kubernetesGateway:
+        enabled: true
+    # Chart'ın varsayılan Gateway'ini oluşturma, kendi Gateway'imizi 2-gateway.yaml ile yazıyoruz.
+    gateway:
+      enabled: false
+    # Traefik'in Service'i type: LoadBalancer'dır. Hetzner CCM bu annotation'larla bir LB açar.
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/name: traefik
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/type: lb11
+        load-balancer.hetzner.cloud/use-private-ip: "true"
