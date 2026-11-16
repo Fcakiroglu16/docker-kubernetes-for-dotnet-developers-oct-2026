@@ -113,7 +113,22 @@ hetzner-k3s her node'a SSH ile bağlanır ve şunları yapar:
 - Worker'larda k3s'i agent olarak kurar ve token ile master'a bağlar.
 
 SSH ileride de lazım olur: worker eklerken, `hetzner-k3s run` ile node'larda komut çalıştırırken ve
-node'a girip log incelerken.
+node'a girip log incelerken. Örneğin worker1'de `uptime` komutunu çalıştırmak için:
+
+```bash
+hetzner-k3s run --config cluster.yaml --instance egitim-pool-worker-worker1 --command "uptime"
+```
+
+Araç onay ister, `continue` yazıp Enter'a basın:
+
+```text
+Type 'continue' to execute this command on instance: continue
+=== Instance: egitim-pool-worker-worker1 (2.31.133.62) ===
+10:55:04 up 12:07,  1 user,  load average: 0.01, 0.41, 0.34
+Command completed successfully
+```
+
+`--instance` verilmezse komut tüm node'larda çalışır.
 
 SSH key ile açılan Hetzner sunucusunda root şifresi oluşturulmaz. Giriş sadece key ile yapılabilir.
 Bu, şifre ile kaba kuvvet saldırılarını baştan engeller.
@@ -716,8 +731,17 @@ kubectl delete deployment nginx
 ```
 
 **Not:** Var olan pod'lar yeni node'a kendiliğinden taşınmaz. Kubernetes çalışan pod'ları yeniden
-dağıtmaz. Yeni node sadece bundan sonra oluşturulan pod'ları alır. Var olan bir deployment'ı dağıtmak
-için `kubectl rollout restart deployment/<ad>` komutunu kullanın.
+dağıtmaz. Yeni node sadece bundan sonra oluşturulan pod'ları alır. Var olan bir deployment'ı yeni node
+dahil tüm worker'lara yeniden dağıtmak için pod'larını yeniden başlatın. Örneğin yukarıdaki `nginx`
+deployment'ı silinmeden önce:
+
+```bash
+kubectl rollout restart deployment/nginx
+```
+
+```bash
+kubectl get pods -l app=nginx -o wide
+```
 
 ### 8.6 Farklı tipte worker eklemek
 
@@ -754,10 +778,23 @@ Silme 4 adımdan oluşur. Sıra önemlidir:
 
 | Adım | Komut | Neden |
 |---|---|---|
-| 1 | `kubectl drain` | Pod'ları diğer node'lara taşır. Uygulamalar kesintisiz çalışır. |
-| 2 | `instance_count` azalt | Bir sonraki `create` çalıştırmasında node'un tekrar oluşturulmasını engeller |
-| 3 | `kubectl delete node` | Node'u Kubernetes'ten kaldırır |
-| 4 | `hcloud server delete` | Sunucuyu Hetzner'den siler, ücretlendirme durur |
+| 1 | `kubectl drain egitim-pool-worker-worker3 --ignore-daemonsets --delete-emptydir-data` | Pod'ları diğer node'lara taşır. Uygulamalar kesintisiz çalışır. |
+| 2 | `cluster.yaml` içinde `instance_count: 3` → `instance_count: 2` | Bir sonraki `create` çalıştırmasında node'un tekrar oluşturulmasını engeller |
+| 3 | `kubectl delete node egitim-pool-worker-worker3` | Node'u Kubernetes'ten kaldırır |
+| 4 | `hcloud server delete egitim-pool-worker-worker3` | Sunucuyu Hetzner'den siler, ücretlendirme durur |
+
+Tüm adımlar sırayla (2. adım dosya düzenlemesidir, komut değildir):
+
+```bash
+kubectl drain egitim-pool-worker-worker3 --ignore-daemonsets --delete-emptydir-data
+
+# cluster.yaml: worker pool'un instance_count değerini 3'ten 2'ye düşürün
+
+kubectl delete node egitim-pool-worker-worker3
+hcloud server delete egitim-pool-worker-worker3
+```
+
+Her adımın açıklaması ve çıktısı aşağıdaki alt bölümlerdedir.
 
 ### Hangi node'u silmelisiniz?
 
@@ -911,8 +948,12 @@ sunucuyla birlikte silinir ve ücretlendirilmez:
 hcloud primary-ip list
 ```
 
-Listede sadece kalan 3 sunucunun IP'leri görünmelidir. Silinen sunucuya ait IP kalmışsa
-`hcloud primary-ip delete <id>` ile silin.
+Listede sadece kalan 3 sunucunun IP'leri görünmelidir. `ASSIGNEE` sütunu boş olan bir IP kaldıysa,
+o IP silinen sunucudan kalmıştır. `ID` sütunundaki değerle silin. Örneğin ID'si `162896624` ise:
+
+```bash
+hcloud primary-ip delete 162896624
+```
 
 Son kontrol olarak `create` komutunu tekrar çalıştırın. Config ile Hetzner artık eşit olduğu için
 araç yeni sunucu açmaz. Log'da `Creating instance` satırı olmamalıdır:
@@ -961,15 +1002,31 @@ hetzner-k3s create --config cluster.yaml
 
 ## Node'a SSH ile bağlanma
 
+`hcloud server ip` komutu sunucunun public IP'sini verir. SSH komutuna doğrudan verilebilir:
+
 ```bash
-ssh -i ~/.ssh/hetzner_k3s root@<node-public-ip>
+ssh -i ~/.ssh/hetzner_k3s root@$(hcloud server ip egitim-master1)
 ```
 
-Node'un public IP'sini `hcloud server list` veya `kubectl get nodes -o wide` (`EXTERNAL-IP`) ile
-bulabilirsiniz.
+```bash
+ssh -i ~/.ssh/hetzner_k3s root@$(hcloud server ip egitim-pool-worker-worker1)
+```
 
-k3s log'larını incelemek için master'da `journalctl -u k3s`, worker'da `journalctl -u k3s-agent`
-komutunu çalıştırın.
+IP'leri listelemek için `hcloud server list` veya `kubectl get nodes -o wide` (`EXTERNAL-IP` sütunu)
+komutlarını da kullanabilirsiniz.
+
+k3s log'larını incelemek için, node'a girmeden SSH ile tek komut çalıştırın. Master'da servis adı
+`k3s`, worker'larda `k3s-agent`'tır:
+
+```bash
+ssh -i ~/.ssh/hetzner_k3s root@$(hcloud server ip egitim-master1) journalctl -u k3s -n 50 --no-pager
+```
+
+```bash
+ssh -i ~/.ssh/hetzner_k3s root@$(hcloud server ip egitim-pool-worker-worker1) journalctl -u k3s-agent -n 50 --no-pager
+```
+
+`-n 50` son 50 satırı gösterir. Canlı izlemek için `-n 50 --no-pager` yerine `-f` kullanın.
 
 ## 10. Cluster'ı tamamen silme
 
@@ -997,11 +1054,23 @@ kubectl get svc -A --field-selector spec.type=LoadBalancer
 kubectl get pvc -A
 ```
 
-Listede kaynak varsa silin:
+Listede kaynak varsa silin. Komutlara listedeki `NAME` ve `NAMESPACE` değerlerini yazın.
+Örneğin [PrivateRegistry](../PrivateRegistry/private-registry.md) rehberindeki `week6-api` servisi için:
 
 ```bash
-kubectl delete svc <ad> -n <namespace>
-kubectl delete pvc <ad> -n <namespace>
+kubectl delete svc week6-api -n week6
+```
+
+Bir namespace'teki tüm PVC'leri silmek için:
+
+```bash
+kubectl delete pvc --all -n week6
+```
+
+Uygulamanın namespace'ini tamamen silmek, içindeki Service ve PVC'leri de siler:
+
+```bash
+kubectl delete namespace week6
 ```
 
 ### 10.2 Silme korumasını kaldırın
@@ -1095,12 +1164,22 @@ uygulama kaynaklarıdır. Elle silin:
 
 ```bash
 hcloud load-balancer list
-hcloud load-balancer delete <id>
+```
+
+Listedeki `NAME` veya `ID` ile silin. Örneğin `week6-api` adlı LB için:
+
+```bash
+hcloud load-balancer delete week6-api
 ```
 
 ```bash
 hcloud volume list
-hcloud volume delete <id>
+```
+
+CSI driver'ın açtığı volume'ların adı `pvc-` ile başlar. Listedeki adla silin, örneğin:
+
+```bash
+hcloud volume delete pvc-3f1c2a9e-5b7d-4e0a-9c1f-2d8e6b4a7c10
 ```
 
 Son olarak `kubeconfig` dosyasının silindiğini kontrol edin:

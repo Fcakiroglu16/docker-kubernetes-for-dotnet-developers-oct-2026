@@ -369,7 +369,13 @@ ama gelen isteği kube-proxy ile worker'daki pod'a iletir. Master'ı hedeflerden
 node'a `node.kubernetes.io/exclude-from-external-load-balancers` label'ını ekleyebilirsiniz.
 
 **Not:** LoadBalancer Service'in arka planda açtığı NodePort (`30080`) hâlâ node'ların public IP'leri
-üzerinden de erişilebilir (`curl http://<node-public-ip>:30080/` → `200`). Çünkü hetzner-k3s firewall'u
+üzerinden de erişilebilir. Örneğin worker1'in public IP'si üzerinden:
+
+```bash
+curl http://$(hcloud server ip egitim-pool-worker-worker1):30080/
+```
+
+Cevap `200` ile gelir. Çünkü hetzner-k3s firewall'u
 30000-32767 aralığını internete açık tutar. Trafiği sadece LB üzerinden kabul etmek için
 `hetzner-k3s/cluster.yaml` içinde `networking.node_port_firewall_enabled: false` yapın. LB node'lara
 `use-private-ip` ile private network'ten bağlandığı ve Hetzner firewall'u private network trafiğine
@@ -438,6 +444,39 @@ mimaride build edilir.
 | 4. Cluster'a bağlan | `echo "$KUBE_CONFIG" > ~/.kube/config`, `kubectl get nodes` | Admin kubeconfig'i kubectl'in varsayılan yerine yazar. Node listesi bağlantının çalıştığını gösterir. |
 | 5. Image pull secret | `kubectl create secret docker-registry ...` | Cluster'daki `ghcr-pull-secret`'ı oluşturur veya günceller |
 | 6. Deploy | `sed`, `kubectl apply`, `kubectl rollout status` | Deployment'taki etiketi değiştirir, yaml'ları uygular, yeni pod'lar hazır olana kadar bekler |
+
+Adımların tam komutları (workflow'daki `run:` blokları):
+
+```bash
+# 2. Image etiketi
+echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+# 3. Docker build ve push
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+docker build --build-arg APP_VERSION=$TAG -t $IMAGE:$TAG -t $IMAGE:latest $APP_DIR/Week6.API
+docker push --all-tags $IMAGE
+
+# 4. Cluster'a bağlan
+mkdir -p ~/.kube
+echo "$KUBE_CONFIG" > ~/.kube/config
+kubectl get nodes
+
+# 5. Image pull secret
+kubectl create secret docker-registry ghcr-pull-secret \
+  --namespace week6 \
+  --docker-server=ghcr.io \
+  --docker-username=fcakiroglu16 \
+  --docker-password="$GHCR_PULL_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# 6. Deploy
+sed -i "s|$IMAGE:latest|$IMAGE:$TAG|" $APP_DIR/2-deployment.yaml
+kubectl apply -f $APP_DIR/2-deployment.yaml -f $APP_DIR/3-service.yaml
+kubectl rollout status deployment/week6-api -n week6
+```
+
+`$IMAGE` ve `$APP_DIR` workflow'un `env:` bloğundan, `$TAG` 2. adımdan, `$GITHUB_TOKEN`,
+`$KUBE_CONFIG` ve `$GHCR_PULL_TOKEN` ise adımların `env:` bloklarındaki secret'lardan gelir.
 
 Herhangi bir adım hata verirse sonraki adımlar çalışmaz ve workflow kırmızı (failed) olur. Örneğin
 build başarısız olursa deploy yapılmaz, cluster'daki eski sürüm çalışmaya devam eder.
@@ -803,7 +842,11 @@ gh workflow run week6-api.yml --ref main
 ```
 
 Not: Elle tetikleme aynı commit üzerinde çalışırsa etiket de aynı kalır (`sha-...`). Deployment
-değişmediği için rollout başlamaz. Yeni pod'lar istiyorsanız `kubectl rollout restart` kullanın.
+değişmediği için rollout başlamaz. Yeni pod'lar istiyorsanız:
+
+```bash
+kubectl -n week6 rollout restart deployment/week6-api
+```
 
 ### 12.2 Ne oldu?
 
@@ -835,7 +878,8 @@ Geçişi API üzerinden izleyebilirsiniz. Rolling update sırasında cevaplar es
 karışık gelir, sonra hepsi yeni sürüme geçer:
 
 ```bash
-while true; do curl -s http://<lb-ip>/ | jq -r .version; sleep 0.5; done
+LB_IP=$(hcloud load-balancer describe week6-api -o format='{{.PublicNet.IPv4.IP}}')
+while true; do curl -s http://$LB_IP/ | jq -r .version; sleep 0.5; done
 ```
 
 ```text
@@ -891,15 +935,15 @@ görülmedi:
 
 | Belirti | Olası neden | Kontrol |
 |---|---|---|
-| Pod `ImagePullBackOff`, mesaj `not found` | Pull secret yok, yanlış veya token süresi dolmuş | `kubectl -n week6 get secret ghcr-pull-secret`, PAT'in süresi |
+| Pod `ImagePullBackOff`, mesaj `not found` | Pull secret yok, yanlış veya token süresi dolmuş | `kubectl -n week6 get secret ghcr-pull-secret`, PAT'in süresi: https://github.com/settings/tokens |
 | Pod `ImagePullBackOff`, mesaj `exec format error` veya `no match for platform` | Image arm64 build edilmiş | Build'de `--platform linux/amd64` |
 | Workflow `Cluster'a bağlan` adımında zaman aşımı | 6443 portu GitHub'a kapalı | `hcloud firewall describe egitim` |
 | Workflow `Unauthorized` veya sertifika hatası | Cluster yeniden kuruldu, `KUBE_CONFIG` eski | `KUBE_CONFIG` secret'ını yeni `kubeconfig` ile güncelleyin |
 | Workflow `GHCR_PULL_TOKEN secret'ı tanımlı değil` | Secret eklenmemiş | `gh secret list` |
 | Build adımında `denied: permission_denied` | Workflow'da `packages: write` yok | `permissions` bloğu |
-| `rollout status` zaman aşımı | Pod `/health` probe'unu geçemiyor | `kubectl -n week6 describe pod <pod>` |
+| `rollout status` zaman aşımı | Pod `/health` probe'unu geçemiyor | `kubectl -n week6 describe pods -l app=week6-api` |
 | `EXTERNAL-IP` sürekli `<pending>` | `location` annotation'ı yok veya CCM hata veriyor | `kubectl -n week6 describe svc week6-api` olayları, `kubectl -n kube-system logs deploy/hcloud-cloud-controller-manager` |
-| LB health `unhealthy` | Node'lara NodePort üzerinden ulaşılamıyor | `hcloud load-balancer describe week6-api`, pod'lar `Running` mi |
+| LB health `unhealthy` | Node'lara NodePort üzerinden ulaşılamıyor | `hcloud load-balancer describe week6-api`, `kubectl -n week6 get pods` |
 
 ## Temizlik
 
