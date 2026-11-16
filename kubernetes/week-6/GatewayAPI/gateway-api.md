@@ -380,22 +380,25 @@ Cloudflare Dashboard'da kayıt ekleyin: kiteloomstudio.com > DNS > Records > **A
 | Proxy status | **DNS only** (gri bulut) |
 | TTL | Auto |
 
-**Neden DNS only?** Proxy (turuncu bulut) açıkken istekler Cloudflare üzerinden gelir. Cloudflare'in
-SSL ayarı `Full` veya `Full (strict)` ise Cloudflare sunucuya HTTPS ile bağlanmaya çalışır. Gateway'de
-henüz HTTPS listener'ı olmadığı için bağlantı başarısız olur. DNS only ile tarayıcı doğrudan Hetzner
-LB'sine bağlanır.
+**Neden DNS only?** Proxy (turuncu bulut) açıkken istekler önce Cloudflare'e gelir, Cloudflare de
+sunucuya bağlanır. HTTP istekleri yine çalışır, ama HTTPS istekleri çalışmaz. Bkz.
+[Proxy açıksa](#proxy-açıksa-turuncu-bulut). DNS only ile istemci doğrudan Traefik LB'sine bağlanır.
 
 İsterseniz IPv6 için aynı adla bir `AAAA` kaydı da ekleyin: `2a01:4f8:c016:6cd3::1`.
 
-Kaydın yayıldığını kontrol edin:
+Kaydı Cloudflare'in kendi nameserver'ına sorun. Kayıt kaydedildiyse hemen görünür:
 
 ```bash
-dig +short order.kiteloomstudio.com
+dig +short order.kiteloomstudio.com @rustam.ns.cloudflare.com
 ```
+
+DNS only ise cevap Traefik LB IP'sidir:
 
 ```text
 2.31.140.127
 ```
+
+Cevap `NXDOMAIN` ise (çıktı boş) kayıt kaydedilmemiştir. Cloudflare'de **Save**'e basıldığını kontrol edin.
 
 ---
 
@@ -403,9 +406,64 @@ dig +short order.kiteloomstudio.com
 
 ```bash
 curl http://order.kiteloomstudio.com/
+curl http://order.kiteloomstudio.com/health
+```
+
+```text
+{"message":"Week6.API çalışıyor","version":"sha-f1c56d0","pod":"week6-api-994657959-sdlrw"}
+Healthy
 ```
 
 Tarayıcıdan: http://order.kiteloomstudio.com/
+
+### Proxy açıksa (turuncu bulut)
+
+Bu testte kayıt proxy açık olarak eklendi. `dig` Traefik LB IP'si yerine Cloudflare'in IP'lerini döndürür:
+
+```bash
+dig +short order.kiteloomstudio.com @rustam.ns.cloudflare.com
+```
+
+```text
+188.114.97.3
+188.114.96.3
+```
+
+HTTP yine çalışır. Cevap başlıklarında `Server: cloudflare` görünür:
+
+```bash
+curl -sI http://order.kiteloomstudio.com/ | grep -i -E '^(server|cf-ray)'
+```
+
+```text
+Server: cloudflare
+CF-RAY: a5b6f3c5d9ff760b-AMS
+```
+
+HTTPS ise `404` döner:
+
+```bash
+curl https://order.kiteloomstudio.com/
+```
+
+```text
+404 page not found
+```
+
+Nedeni: Cloudflare'in SSL ayarı `Full` olduğu için Cloudflare sunucuya `443` portundan HTTPS ile
+bağlanır. Traefik `443`'ü kendi varsayılan sertifikasıyla karşılar. Ama Gateway'de HTTPS listener'ı
+olmadığı için o porttan gelen istek için route yoktur. Aynı cevap Traefik LB'sine doğrudan HTTPS ile
+gidince de gelir:
+
+```bash
+curl -k -H "Host: order.kiteloomstudio.com" https://2.31.140.127/
+```
+
+```text
+404 page not found
+```
+
+Çözüm: Kaydı **DNS only** yapın veya Gateway'e HTTPS listener'ı ekleyin. Bkz. [HTTPS](#https).
 
 ---
 
@@ -425,7 +483,8 @@ otomatik alınır. Bu ayrı bir konudur.
 | `attachedRoutes=0` | HTTPRoute `parentRefs` veya `hostnames` uyuşmuyor | `kubectl -n week6 describe httproute week6-api` |
 | `curl` `404` dönüyor | `Host` header'ı yok veya farklı alan adı | `curl -H "Host: order.kiteloomstudio.com" http://2.31.140.127/` |
 | Alan adı çözülmüyor | DNS kaydı yok veya yayılmadı | `dig +short order.kiteloomstudio.com` |
-| Cloudflare `521` / `525` hatası | Proxy açık ve Cloudflare HTTPS ile bağlanmaya çalışıyor | Kaydı **DNS only** yapın |
+| `https://` ile `404 page not found` | Proxy açık, Cloudflare `443`'e bağlanıyor, Gateway'de HTTPS listener'ı yok | Kaydı **DNS only** yapın. Bkz. [Proxy açıksa](#proxy-açıksa-turuncu-bulut) |
+| Cloudflare `521` hatası | Proxy açık ve Cloudflare sunucuya bağlanamıyor | `hcloud load-balancer list` ile Traefik LB'sinin `healthy` olduğunu kontrol edin |
 
 ## Temizlik
 
