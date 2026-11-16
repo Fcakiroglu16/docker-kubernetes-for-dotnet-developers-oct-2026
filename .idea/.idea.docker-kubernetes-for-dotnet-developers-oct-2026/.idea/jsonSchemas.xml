@@ -3,6 +3,22 @@
   <component name="JsonSchemaMappingsProjectConfiguration">
     <state>
       <map>
+        <entry key="RKE Cluster Configuration YAML">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="RKE Cluster Configuration YAML" />
+              <option name="relativePathToSchema" value="https://raw.githubusercontent.com/dcermak/vscode-rke-cluster-config/main/schemas/cluster.yml.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="kubernetes/week-6/hetzner-k3s/cluster.yaml" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
         <entry key="appsettings.json">
           <value>
             <SchemaInfo>
