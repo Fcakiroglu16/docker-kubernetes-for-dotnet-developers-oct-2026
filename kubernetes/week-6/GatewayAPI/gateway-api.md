@@ -181,6 +181,15 @@ traefik     healthy   2.31.140.127   lb11   fsn1
 
 `2.31.140.127`, alan adının yönlendirileceği IP'dir.
 
+`week6-api` LB'si, `week6-api` Service'inin `type: LoadBalancer` olduğu döneme aittir. Trafik Gateway
+üzerinden gelmeye başlayınca bu Service `ClusterIP` yapıldı ve LB'si silindi. Bkz.
+[Private Registry rehberi, 7. adım](../PrivateRegistry/private-registry.md#7-service-clusterip). Şimdiki liste:
+
+```text
+NAME      HEALTH    IPV4           TYPE   LOCATION
+traefik   healthy   2.31.140.127   lb11   fsn1
+```
+
 Traefik'in Gateway desteğinin açık olduğunu başlatma parametrelerinden görebilirsiniz:
 
 ```bash
@@ -263,7 +272,7 @@ spec:
 | `parentRefs` | Kuralın bağlandığı Gateway |
 | `hostnames` | Kuralın geçerli olduğu alan adı. Gateway listener'ının `hostname`'iyle uyuşmalıdır. |
 | `matches.path` | `PathPrefix: /` tüm path'leri eşler: `/`, `/health` ve diğerleri |
-| `backendRefs` | İsteğin gönderileceği Service ve portu. `week6-api` Service'inin `port: 80` değeri. |
+| `backendRefs` | İsteğin gönderileceği Service ve portu. `week6-api` Service'inin `port: 80` değeri. Service `ClusterIP` olabilir, dışarıya açık olması gerekmez. |
 
 ```bash
 kubectl apply -f 3-httproute.yaml

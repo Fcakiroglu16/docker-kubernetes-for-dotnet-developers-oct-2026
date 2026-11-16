@@ -1055,10 +1055,18 @@ kubectl get pvc -A
 ```
 
 Listede kaynak varsa silin. Komutlara listedeki `NAME` ve `NAMESPACE` değerlerini yazın.
-Örneğin [PrivateRegistry](../PrivateRegistry/private-registry.md) rehberindeki `week6-api` servisi için:
+Örneğin bir uygulamanın `type: LoadBalancer` servisi için (komutu kendi servis adınız ve namespace'inizle çalıştırın):
 
 ```bash
 kubectl delete svc week6-api -n week6
+```
+
+[Gateway API](../GatewayAPI/gateway-api.md) rehberindeki `traefik` servisini k3s yönetir. `kubectl delete svc`
+ile silinirse k3s onu yeniden oluşturur. Traefik'in LB'sini kaldırmak için `cluster.yaml` içinde
+`addons.traefik.enabled: false` yapıp `create` komutunu çalıştırın:
+
+```bash
+hetzner-k3s create --config cluster.yaml
 ```
 
 Bir namespace'teki tüm PVC'leri silmek için:
@@ -1166,10 +1174,10 @@ uygulama kaynaklarıdır. Elle silin:
 hcloud load-balancer list
 ```
 
-Listedeki `NAME` veya `ID` ile silin. Örneğin `week6-api` adlı LB için:
+Listedeki `NAME` veya `ID` ile silin. Örneğin Gateway API rehberindeki `traefik` adlı LB için:
 
 ```bash
-hcloud load-balancer delete week6-api
+hcloud load-balancer delete traefik
 ```
 
 ```bash

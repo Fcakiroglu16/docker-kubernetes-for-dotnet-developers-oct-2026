@@ -3,19 +3,13 @@ kind: Service
 metadata:
   name: week6-api
   namespace: week6
-  annotations:
-    # Hetzner Cloud Controller Manager (CCM) bu annotation'lara göre bir Hetzner Load Balancer oluşturur.
-    load-balancer.hetzner.cloud/name: week6-api # Hetzner Console'daki LB adı
-    load-balancer.hetzner.cloud/location: fsn1 # zorunlu: LB'nin açılacağı lokasyon, node'larla aynı
-    load-balancer.hetzner.cloud/type: lb11 # en küçük LB tipi
-    # LB node'lara public internet yerine private network (10.0.x.x) üzerinden bağlanır.
-    load-balancer.hetzner.cloud/use-private-ip: "true"
 spec:
-  # LoadBalancer: CCM, Hetzner'de ücretli bir Load Balancer açar ve public IP'sini
-  # Service'in EXTERNAL-IP alanına yazar. LB trafiği node'lara, node'lar da pod'lara dağıtır.
-  type: LoadBalancer
+  # ClusterIP: Service sadece cluster içinden erişilebilir, ayrı bir Hetzner LB açılmaz.
+  # Dış trafik Gateway (Traefik) üzerinden gelir: order.kiteloomstudio.com -> Traefik LB -> bu Service.
+  # Bkz. GatewayAPI/gateway-api.md
+  type: ClusterIP
   selector:
     app: week6-api
   ports:
-    - port: 80 # LB'nin dışarıya açtığı port
+    - port: 80 # Service'in portu, HTTPRoute backendRefs bu portu kullanır
       targetPort: 8080 # container'ın dinlediği port
