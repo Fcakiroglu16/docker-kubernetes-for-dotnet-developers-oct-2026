@@ -13,14 +13,13 @@ Image private'tır. Kubernetes onu bir **image pull secret** ile çeker.
  git push main
       │
       ▼
-┌─────────────────────────── GitHub Actions ───────────────────────────┐
-│ build job                          deploy job                        │
-│  1. checkout                        1. checkout                      │
-│  2. docker build (linux/amd64)      2. kubectl kur                   │
-│  3. GHCR'ye push ─────────┐         3. KUBE_CONFIG ile bağlan        │
-│     sha-1a2b3c4, latest   │         4. ghcr-pull-secret oluştur      │
-│                           │         5. deployment + service apply    │
-│                           │         6. rollout status bekle          │
+┌──────────────── GitHub Actions: build-and-deploy job ────────────────┐
+│  1. checkout                                                         │
+│  2. image etiketi: sha-1a2b3c4                                       │
+│  3. docker build + push ──┐                                          │
+│  4. KUBE_CONFIG ile bağlan│                                          │
+│  5. ghcr-pull-secret oluştur                                         │
+│  6. deployment + service apply, rollout bekle                        │
 └───────────────────────────┼─────────────────────┬────────────────────┘
                             ▼                     │ 6443 (Kubernetes API)
                  ┌────────────────────┐           ▼
@@ -110,7 +109,7 @@ curl localhost:18080/
 
 **Neden `--platform linux/amd64`?** Hetzner `cx23` sunucuları x86 (amd64) işlemcilidir. Apple Silicon
 bir Mac'te platform verilmezse image arm64 olarak build edilir ve node'da `exec format error` ile
-çalışmaz. Workflow'daki runner zaten amd64'tür, ama platformu yine de açıkça belirtir.
+çalışmaz. Workflow'daki `ubuntu-latest` runner zaten amd64 olduğu için orada `--platform` gerekmez.
 
 ---
 
@@ -195,7 +194,11 @@ Kubeconfig üç bilgi içerir:
 | `certificate-authority-data` | Cluster'ın sertifikasını doğrulamak için. Araya giren sahte bir sunucuyu engeller. |
 | `client-certificate-data`, `client-key-data` | Kimlik. Bu cluster'da `system:admin` kullanıcısı. |
 
-Workflow'un `kubeconfig` adımı `kubectl auth whoami` ile hangi kimlikle bağlandığını log'a yazar:
+Bu kimliği kendi makinenizde görebilirsiniz:
+
+```bash
+KUBECONFIG=../hetzner-k3s/kubeconfig kubectl auth whoami
+```
 
 ```text
 Username    system:admin
@@ -378,8 +381,9 @@ uygulanmadığı için LB'nin etkilenmemesi gerekir. Bu ayar bu rehberde test ed
 
 ## 8. Workflow
 
-[`.github/workflows/week6-api.yml`](../../../.github/workflows/week6-api.yml). Her `uses:` satırının
-üstünde ne işe yaradığını anlatan bir yorum var.
+[`.github/workflows/week6-api.yml`](../../../.github/workflows/week6-api.yml) tek bir job ve 6 adımdan
+oluşur. Hazır action olarak sadece `actions/checkout` kullanılır. Diğer adımlar, derste kullandığınız
+`docker` ve `kubectl` komutlarıyla aynıdır.
 
 ### Ne zaman çalışır?
 
@@ -390,55 +394,92 @@ on:
     paths:
       - "kubernetes/week-6/PrivateRegistry/**"
       - "!kubernetes/week-6/PrivateRegistry/**/*.md"
-      - ".github/workflows/week6-api.yml"
   workflow_dispatch:
 ```
 
 - `push` + `branches: [main]`: Bir PR main'e merge edildiğinde veya main'e doğrudan push yapıldığında.
-- `paths`: Sadece bu API veya workflow değiştiyse. Repodaki diğer haftaların değişiklikleri deploy tetiklemez.
+- `paths`: Sadece bu klasördeki dosyalar değiştiyse. Repodaki diğer haftaların değişiklikleri deploy tetiklemez.
 - `!**/*.md`: Sadece doküman değiştiyse deploy yapılmaz.
-- `workflow_dispatch`: Actions sekmesinden elle çalıştırmak için.
+- `workflow_dispatch`: Actions sekmesinden **Run workflow** ile elle çalıştırmak için.
 
-### Diğer ayarlar
+Workflow dosyasının kendisi `paths` listesinde yoktur. Sadece workflow'u değiştirirseniz otomatik
+çalışmaz, elle çalıştırmanız gerekir:
+
+```bash
+gh workflow run week6-api.yml --ref main
+```
+
+### Yetkiler ve değişkenler
 
 ```yaml
 permissions:
   contents: read
   packages: write
+
+env:
+  IMAGE: ghcr.io/fcakiroglu16/week6-api
+  APP_DIR: kubernetes/week-6/PrivateRegistry
 ```
 
-`GITHUB_TOKEN`'ın yetkileri. Kod okunur, GHCR'ye image yazılır. Başka hiçbir yetki verilmez.
+- `permissions`: `GITHUB_TOKEN`'ın yetkileri. Kod okunur, GHCR'ye image yazılır. Başka yetki verilmez.
+- `env`: Tüm adımlarda kullanılan değişkenler. GHCR image adları küçük harf olmak zorundadır.
+
+### Adımlar
+
+`runs-on: ubuntu-latest`: Job, GitHub'ın verdiği boş bir Ubuntu makinesinde çalışır. Bu makinede
+`docker` ve `kubectl` hazır kuruludur. Makine x86 (amd64) olduğu için image, Hetzner node'larıyla aynı
+mimaride build edilir.
+
+| Adım | Komut | Ne yapar |
+|---|---|---|
+| 1. checkout | `uses: actions/checkout@v7` | Repoyu makineye indirir. Makine boş başlar. |
+| 2. Image etiketi | `echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"` | Commit hash'inin ilk 7 karakterinden `sha-1a2b3c4` etiketi üretir. `$GITHUB_ENV`'e yazılan değişken sonraki adımlarda `$TAG` olarak kullanılır. |
+| 3. Docker build ve push | `docker login`, `docker build`, `docker push` | `GITHUB_TOKEN` ile GHCR'ye giriş yapar. Image'ı `sha-1a2b3c4` ve `latest` etiketleriyle build edip gönderir. |
+| 4. Cluster'a bağlan | `echo "$KUBE_CONFIG" > ~/.kube/config`, `kubectl get nodes` | Admin kubeconfig'i kubectl'in varsayılan yerine yazar. Node listesi bağlantının çalıştığını gösterir. |
+| 5. Image pull secret | `kubectl create secret docker-registry ...` | Cluster'daki `ghcr-pull-secret`'ı oluşturur veya günceller |
+| 6. Deploy | `sed`, `kubectl apply`, `kubectl rollout status` | Deployment'taki etiketi değiştirir, yaml'ları uygular, yeni pod'lar hazır olana kadar bekler |
+
+Herhangi bir adım hata verirse sonraki adımlar çalışmaz ve workflow kırmızı (failed) olur. Örneğin
+build başarısız olursa deploy yapılmaz, cluster'daki eski sürüm çalışmaya devam eder.
+
+### Secret'lar adımlara nasıl verilir?
 
 ```yaml
-concurrency:
-  group: week6-api-deploy
-  cancel-in-progress: false
+      - name: Cluster'a bağlan
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          echo "$KUBE_CONFIG" > ~/.kube/config
 ```
 
-Art arda iki merge olursa iki deploy aynı anda çalışmaz. İkincisi birincinin bitmesini bekler.
+`${{ secrets.KUBE_CONFIG }}` doğrudan `run:` komutunun içine yazılmaz. Önce adımın `env:` bloğunda
+bir ortam değişkenine atanır, komut bu değişkeni (`$KUBE_CONFIG`) kullanır. Nedeni: `${{ }}` ifadesi
+komut çalışmadan önce metin olarak yerine konur. Secret'ın içinde `$` veya `"` gibi karakterler varsa
+shell bunları yorumlar ve komut bozulur. Ortam değişkeni ise olduğu gibi aktarılır.
 
-### build job
+GitHub, secret değerlerini log'larda `***` olarak gizler.
 
-| Adım | Ne yapar |
-|---|---|
-| `actions/checkout` | Kodu runner'a indirir |
-| Image etiketi | Commit hash'inin ilk 7 karakterinden `sha-1a2b3c4` etiketi üretir |
-| `docker/setup-buildx-action` | Buildx'i kurar (platform seçimi ve cache için) |
-| `docker/login-action` | `GITHUB_TOKEN` ile `ghcr.io`'ya giriş yapar |
-| `docker/build-push-action` | Image'ı build eder, `sha-1a2b3c4` ve `latest` etiketleriyle push eder |
+### Build ve push
 
-### deploy job
+```bash
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+docker build --build-arg APP_VERSION=$TAG -t $IMAGE:$TAG -t $IMAGE:latest $APP_DIR/Week6.API
+docker push --all-tags $IMAGE
+```
 
-`needs: build` sayesinde build başarılı olmadan çalışmaz.
+- `--password-stdin`: Token'ı komut satırı argümanı yerine standart girdiden verir. Böylece token işlem
+  listesinde görünmez.
+- `-t` iki kez: Aynı image'a iki etiket verilir. `sha-1a2b3c4` deploy için kullanılır, `latest` en son
+  sürümü gösterir.
+- `--all-tags`: Image'ın tüm etiketlerini tek komutla gönderir.
 
-| Adım | Ne yapar |
-|---|---|
-| `actions/checkout` | Yaml dosyaları için kodu tekrar indirir. Her job ayrı makinede çalışır. |
-| `azure/setup-kubectl` | kubectl'i kurar |
-| kubeconfig | `KUBE_CONFIG` secret'ını `~/.kube/config` dosyasına yazar. `kubectl auth whoami` ile bağlantıyı test eder. |
-| Image pull secret | `GHCR_PULL_TOKEN` ile `ghcr-pull-secret`'ı oluşturur veya günceller |
-| Deploy | `latest` etiketini `sha-...` ile değiştirir, yaml'ları uygular, rollout'un bitmesini bekler |
-| Durum | Sonuç ne olursa olsun deployment, pod ve service durumunu log'a yazar |
+Log'da iki etiketin aynı image'ı (aynı digest) gösterdiği görülür:
+
+```text
+Login Succeeded
+latest: digest: sha256:881f216b... size: 856
+sha-15b32c4: digest: sha256:881f216b... size: 856
+```
 
 Pull secret her çalışmada yeniden uygulanır:
 
@@ -498,17 +539,31 @@ gh run watch
 ```
 
 ```text
-✓ build in 48s
-✓ deploy in 20s
+✓ build-and-deploy in 44s
 ```
 
-Deploy log'unda bağlanan kimlik ve pull secret'ın oluştuğu görünür:
+Log'da her adımın çıktısı görünür. Cluster'a bağlan adımı:
 
 ```text
-Username    system:admin
+NAME                         STATUS   ROLES                AGE   VERSION
+egitim-master1               Ready    control-plane,etcd   11h   v1.37.2+k3s1
+egitim-pool-worker-worker1   Ready    <none>               11h   v1.37.2+k3s1
+...
+```
+
+Image pull secret ve Deploy adımları:
+
+```text
 secret/ghcr-pull-secret created
+deployment.apps/week6-api configured
+service/week6-api unchanged
+Waiting for deployment "week6-api" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "week6-api" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "week6-api" rollout to finish: 1 old replicas are pending termination...
 deployment "week6-api" successfully rolled out
 ```
+
+İlk çalıştırmada secret `created` olur. Sonraki çalışmalarda değişmediyse `unchanged` yazar.
 
 Cluster'da:
 
@@ -838,7 +893,7 @@ görülmedi:
 |---|---|---|
 | Pod `ImagePullBackOff`, mesaj `not found` | Pull secret yok, yanlış veya token süresi dolmuş | `kubectl -n week6 get secret ghcr-pull-secret`, PAT'in süresi |
 | Pod `ImagePullBackOff`, mesaj `exec format error` veya `no match for platform` | Image arm64 build edilmiş | Build'de `--platform linux/amd64` |
-| Workflow `kubeconfig` adımında zaman aşımı | 6443 portu GitHub'a kapalı | `hcloud firewall describe egitim` |
+| Workflow `Cluster'a bağlan` adımında zaman aşımı | 6443 portu GitHub'a kapalı | `hcloud firewall describe egitim` |
 | Workflow `Unauthorized` veya sertifika hatası | Cluster yeniden kuruldu, `KUBE_CONFIG` eski | `KUBE_CONFIG` secret'ını yeni `kubeconfig` ile güncelleyin |
 | Workflow `GHCR_PULL_TOKEN secret'ı tanımlı değil` | Secret eklenmemiş | `gh secret list` |
 | Build adımında `denied: permission_denied` | Workflow'da `packages: write` yok | `permissions` bloğu |
