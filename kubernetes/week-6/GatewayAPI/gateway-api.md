@@ -223,9 +223,6 @@ spec:
       protocol: HTTP
       port: 8000
       hostname: order.kiteloomstudio.com
-      allowedRoutes:
-        namespaces:
-          from: Same
 ```
 
 | Alan | Ne yapar |
@@ -234,7 +231,10 @@ spec:
 | `listeners[].protocol: HTTP` | Düz HTTP. HTTPS için sertifika gerekir, bkz. [HTTPS](#https) |
 | `listeners[].port: 8000` | Traefik'in `web` entrypoint portu. Traefik'te listener portu, entrypoint portuyla eşleşmelidir. |
 | `listeners[].hostname` | Sadece bu alan adına gelen istekler kabul edilir. Diğer alan adları `404` alır. |
-| `allowedRoutes.namespaces.from: Same` | Sadece Gateway ile aynı namespace'teki (`week6`) HTTPRoute'lar bağlanabilir. Başka bir ekibin namespace'i bu Gateway'e route ekleyemez. |
+
+`allowedRoutes` yazılmadı. Varsayılanı `namespaces.from: Same`: Sadece Gateway ile aynı namespace'teki
+(`week6`) HTTPRoute'lar bu Gateway'e bağlanabilir. Başka namespace'lerdeki route'lara izin vermek için
+`allowedRoutes.namespaces.from: All` veya `Selector` yazılır.
 
 ```bash
 kubectl apply -f 2-gateway.yaml
@@ -323,7 +323,7 @@ ResolvedRefs=True
 | Gateway `Accepted` | Controller Gateway'i kabul etti | `gatewayClassName` yanlış veya GatewayClass yok |
 | Gateway `Programmed` | Trafik almaya hazır | Listener portu Traefik entrypoint'iyle uyuşmuyor |
 | `attachedRoutes=1` | Bir HTTPRoute bu listener'a bağlandı | `0` ise HTTPRoute'un `parentRefs` veya `hostnames` değeri uyuşmuyor |
-| HTTPRoute `Accepted` | Route Gateway'e bağlandı | `allowedRoutes` route'un namespace'ine izin vermiyor |
+| HTTPRoute `Accepted` | Route Gateway'e bağlandı | Route Gateway'den farklı bir namespace'te ve `allowedRoutes` buna izin vermiyor |
 | HTTPRoute `ResolvedRefs` | `backendRefs`'teki Service bulundu | Service adı veya portu yanlış |
 
 ---

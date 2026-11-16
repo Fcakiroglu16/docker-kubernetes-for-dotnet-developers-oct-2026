@@ -12,6 +12,4 @@ spec:
       protocol: HTTP
       port: 8000 # Traefik'in "web" entrypoint'i. Dışarıda LB'nin 80 portu buraya gelir.
       hostname: order.kiteloomstudio.com # sadece bu alan adına gelen istekler kabul edilir
-      allowedRoutes:
-        namespaces:
-          from: Same # sadece week6 namespace'indeki HTTPRoute'lar bu Gateway'e bağlanabilir
+      # allowedRoutes yazılmadığında varsayılan "from: Same": sadece week6 namespace'indeki HTTPRoute'lar bağlanabilir
