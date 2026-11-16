@@ -416,6 +416,29 @@ Healthy
 
 Tarayıcıdan: http://order.kiteloomstudio.com/
 
+İsteğin Cloudflare'e uğramadan doğrudan cluster'a geldiğini başlıklardan görebilirsiniz. `Server`
+başlığını Traefik değiştirmez, uygulamanın kendisi (Kestrel) yazar:
+
+```bash
+curl -sI http://order.kiteloomstudio.com/ | grep -i '^server'
+```
+
+```text
+Server: Kestrel
+```
+
+HTTPS henüz yoktur. `443` portunu Traefik kendi varsayılan (self-signed) sertifikasıyla karşılar:
+
+```bash
+curl https://order.kiteloomstudio.com/
+```
+
+```text
+curl: (60) SSL certificate problem: unable to get local issuer certificate
+```
+
+Bkz. [HTTPS](#https).
+
 ### Proxy açıksa (turuncu bulut)
 
 Bu testte kayıt proxy açık olarak eklendi. `dig` Traefik LB IP'si yerine Cloudflare'in IP'lerini döndürür:
