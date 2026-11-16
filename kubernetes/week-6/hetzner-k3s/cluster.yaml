@@ -19,7 +19,7 @@ networking:
     ssh: # 22 portuna sadece bu IP'ler erişebilir
       - 78.162.65.17/32
     api: # 6443 (Kubernetes API) herkese açık: GitHub Actions runner IP'leri sabit değil.
-      # Erişim token ile korunur. Bkz. PrivateRegistry/private-registry.md
+      # Erişim kubeconfig içindeki kimlik bilgisi ile korunur. Bkz. PrivateRegistry/private-registry.md
       - 0.0.0.0/0
       - ::/0
   public_network:

@@ -112,9 +112,9 @@ jobs:
 
       - name: Deploy
         run: |
-          sed -i "s|${IMAGE}:latest|${IMAGE}:${TAG}|" "$APP_DIR/3-deployment.yaml"
-          grep "image:" "$APP_DIR/3-deployment.yaml"
-          kubectl apply -f "$APP_DIR/3-deployment.yaml" -f "$APP_DIR/4-service.yaml"
+          sed -i "s|${IMAGE}:latest|${IMAGE}:${TAG}|" "$APP_DIR/2-deployment.yaml"
+          grep "image:" "$APP_DIR/2-deployment.yaml"
+          kubectl apply -f "$APP_DIR/2-deployment.yaml" -f "$APP_DIR/3-service.yaml"
           kubectl -n "$NAMESPACE" rollout status deployment/week6-api --timeout=180s
 
       - name: Durum

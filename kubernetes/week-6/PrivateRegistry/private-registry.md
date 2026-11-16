@@ -36,13 +36,13 @@ Image private'tır. Kubernetes onu bir **image pull secret** ile çeker.
                                            └──────────────────────────┘
 ```
 
-İki ayrı kimlik kullanılır:
+Üç ayrı kimlik kullanılır:
 
 | Kimlik | Nerede | Ne için | Yetkisi |
 |---|---|---|---|
 | `GITHUB_TOKEN` | GitHub'ın her çalışmada otomatik ürettiği token | Image'ı GHCR'ye **göndermek** | Sadece bu repo, iş bitince geçersiz |
 | `GHCR_PULL_TOKEN` | Sizin oluşturduğunuz PAT, GitHub secret'ı | Cluster'ın image'ı **çekmesi** | Sadece `read:packages` |
-| `KUBE_CONFIG` | ServiceAccount token'ı içeren kubeconfig, GitHub secret'ı | Workflow'un cluster'a **deploy etmesi** | Sadece `week6` namespace'i |
+| `KUBE_CONFIG` | Cluster'ın admin kubeconfig'i, GitHub secret'ı | Workflow'un cluster'a **deploy etmesi** | Cluster'ın tamamı (admin), bkz. [4. adım](#4-kube_config-secretı) |
 
 ## Klasör yapısı
 
@@ -51,14 +51,12 @@ Image private'tır. Kubernetes onu bir **image pull secret** ile çeker.
 kubernetes/week-6/PrivateRegistry/
 ├── Week6.API/                          # .NET API projesi ve Dockerfile
 ├── 1-namespace.yaml                    # week6 namespace'i (elle, bir kez)
-├── 2-github-deployer-rbac.yaml         # GitHub Actions'ın kimliği (elle, bir kez)
-├── 3-deployment.yaml                   # workflow her çalışmada uygular
-├── 4-service.yaml                      # workflow her çalışmada uygular
+├── 2-deployment.yaml                   # workflow her çalışmada uygular
+├── 3-service.yaml                      # workflow her çalışmada uygular
 └── private-registry.md
 ```
 
-`1` ve `2` numaralı dosyalar cluster yöneticisi tarafından bir kez uygulanır. Workflow'un
-namespace oluşturma veya yetki verme izni yoktur, bu bilinçli bir kısıtlamadır.
+`1-namespace.yaml` bir kez elle uygulanır. `2` ve `3` numaralı dosyaları workflow her çalışmada uygular.
 
 ---
 
@@ -83,7 +81,7 @@ ENV APP_VERSION=$APP_VERSION
   etiketi (`sha-1a2b3c4`) verir.
 - `ENV APP_VERSION`: Değeri container'ın ortam değişkenine taşır. API bunu okuyup cevapta gösterir.
 - `LABEL org.opencontainers.image.source`: Image'ı GitHub reposuna bağlar. GHCR paketi repo sayfasının
-  sağındaki **Packages** bölümünde görünür. Bu label'ın görünürlüğe etkisi için [11. adıma](#11-paketi-private-yapın)
+  sağındaki **Packages** bölümünde görünür. Bu label'ın görünürlüğe etkisi için [10. adıma](#10-paketi-private-yapın)
   bakın.
 
 ### Yerelde test
@@ -148,8 +146,9 @@ hcloud firewall describe egitim
 6443 kuralının kaynağı `0.0.0.0/0, ::/0` olmalı, 22 kuralı ise hâlâ sadece sizin IP'niz.
 
 **Bu güvenli mi?** API'ye ağ seviyesinde herkes ulaşabilir, ama geçerli bir token veya sertifika
-olmadan hiçbir işlem yapılamaz. Bu, EKS ve GKE'deki "public endpoint" modeliyle aynıdır. Riski azaltmak
-için workflow'a admin yetkisi değil, sadece tek bir namespace'e yetkili bir kimlik verilir (sonraki adımlar).
+olmadan hiçbir işlem yapılamaz. Bu, EKS ve GKE'deki "public endpoint" modeliyle aynıdır. Ancak bu
+rehberde workflow admin kimliği kullandığı için o kimliğin sızması tüm cluster'ı açığa çıkarır.
+Bkz. [4. adımdaki risk notu](#risk-bu-yol-sadece-eğitim-içindir).
 
 Daha güvenli alternatifler: workflow'un runner IP'sini geçici olarak firewall'a eklemesi, ya da
 cluster içinde self-hosted runner çalıştırmak. İkisi de daha karmaşıktır.
@@ -171,111 +170,61 @@ kubectl apply -f 1-namespace.yaml
 
 **Neden ayrı namespace?**
 
-- Workflow'un yetkisi sadece bu namespace ile sınırlanır.
+- Uygulamanın tüm kaynakları tek yerde toplanır. Silmek tek komuttur: `kubectl delete namespace week6`.
 - Secret'lar namespace'e aittir. `ghcr-pull-secret` sadece `week6`'daki pod'lar tarafından kullanılabilir.
 
 ---
 
-## 4. GitHub Actions için kimlik (ServiceAccount + RBAC)
+## 4. KUBE_CONFIG secret'ı
+
+Workflow cluster'a, hetzner-k3s'in kurulumda oluşturduğu **admin kubeconfig** ile bağlanır. Dosyayı
+GitHub'a secret olarak kaydedin:
 
 ```bash
-kubectl apply -f 2-github-deployer-rbac.yaml
-```
-
-[`2-github-deployer-rbac.yaml`](2-github-deployer-rbac.yaml) dört kaynak oluşturur:
-
-| Kaynak | Ne yapar |
-|---|---|
-| `ServiceAccount github-deployer` | Workflow'un cluster'daki kimliği |
-| `Role github-deployer` | `week6` namespace'inde hangi işlemlere izin verildiği |
-| `RoleBinding github-deployer` | Role'ü ServiceAccount'a bağlar |
-| `Secret github-deployer-token` | ServiceAccount için süresi dolmayan bir token. Kubernetes token'ı bu secret'a kendisi yazar. |
-
-Role'deki izinler ve nedenleri:
-
-| Kaynak | İzinler | Neden |
-|---|---|---|
-| `deployments`, `replicasets` | get, list, watch, create, update, patch | `kubectl apply` ve `kubectl rollout status` |
-| `services` | get, list, create, update, patch | Service'i oluşturmak ve güncellemek |
-| `secrets` | get, create, update, patch | `ghcr-pull-secret`'ı oluşturmak ve güncellemek |
-| `pods`, `events` | get, list, watch | Rollout takılırsa sorunu görmek |
-
-Bilinçli olarak verilmeyen izinler: `delete`, secret'ları **listeleme**, başka namespace'ler ve cluster
-geneli kaynaklar (node, namespace). Token sızarsa saldırgan sadece `week6`'daki uygulamayı
-değiştirebilir, cluster'ı ele geçiremez.
-
-### Doğrulama
-
-`kubectl auth can-i` ile ServiceAccount'un yetkilerini test edin:
-
-```bash
-SA=system:serviceaccount:week6:github-deployer
-kubectl auth can-i patch deployments -n week6 --as=$SA
-kubectl auth can-i delete deployments -n week6 --as=$SA
-kubectl auth can-i get pods -n kube-system --as=$SA
-```
-
-| Komut | Sonuç |
-|---|---|
-| `patch deployments -n week6` | yes |
-| `create secrets -n week6` | yes |
-| `list pods -n week6` | yes |
-| `delete deployments -n week6` | no |
-| `list secrets -n week6` | no |
-| `get pods -n kube-system` | no |
-| `create namespaces` | no |
-| `list nodes` | no |
-
----
-
-## 5. KUBE_CONFIG secret'ı
-
-Workflow'un cluster'a bağlanması için, ServiceAccount token'ını kullanan bir kubeconfig oluşturun.
-Admin kubeconfig'i (`hetzner-k3s/kubeconfig`) GitHub'a **koymayın**, o dosya cluster'a tam yetki verir.
-
-```bash
-OUT=/tmp/github-deployer.kubeconfig
-SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-kubectl -n week6 get secret github-deployer-token -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/ca.crt
-TOKEN=$(kubectl -n week6 get secret github-deployer-token -o jsonpath='{.data.token}' | base64 -d)
-
-KUBECONFIG=$OUT kubectl config set-cluster egitim --server=$SERVER --certificate-authority=/tmp/ca.crt --embed-certs=true
-KUBECONFIG=$OUT kubectl config set-credentials github-deployer --token=$TOKEN
-KUBECONFIG=$OUT kubectl config set-context github-deployer --cluster=egitim --user=github-deployer --namespace=week6
-KUBECONFIG=$OUT kubectl config use-context github-deployer
-```
-
-| Parça | Nereden gelir | Ne işe yarar |
-|---|---|---|
-| `server` | Admin kubeconfig | API adresi: `https://<master-public-ip>:6443` |
-| `ca.crt` | Token secret'ı | Cluster'ın sertifikasını doğrulamak için. Araya giren sahte bir sunucuyu engeller. |
-| `token` | Token secret'ı | ServiceAccount'un kimliği |
-
-Gerçek token ile test edin:
-
-```bash
-KUBECONFIG=$OUT kubectl auth whoami
-KUBECONFIG=$OUT kubectl get pods -n kube-system
-```
-
-```text
-Username    system:serviceaccount:week6:github-deployer
-Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:week6:github-deployer"
-cannot list resource "pods" in API group "" in the namespace "kube-system"
-```
-
-GitHub'a secret olarak kaydedin ve yerel dosyaları silin:
-
-```bash
-gh secret set KUBE_CONFIG -R Fcakiroglu16/docker-kubernetes-for-dotnet-developers-oct-2026 < $OUT
-rm $OUT /tmp/ca.crt
+gh secret set KUBE_CONFIG -R Fcakiroglu16/docker-kubernetes-for-dotnet-developers-oct-2026 < ../hetzner-k3s/kubeconfig
 ```
 
 Tarayıcıdan da eklenebilir: Repo > Settings > Secrets and variables > Actions > New repository secret.
+Name `KUBE_CONFIG`, Secret alanına `kubeconfig` dosyasının tüm içeriği.
+
+Kubeconfig üç bilgi içerir:
+
+| Parça | Ne işe yarar |
+|---|---|
+| `server` | API adresi: `https://<master-public-ip>:6443` |
+| `certificate-authority-data` | Cluster'ın sertifikasını doğrulamak için. Araya giren sahte bir sunucuyu engeller. |
+| `client-certificate-data`, `client-key-data` | Kimlik. Bu cluster'da `system:admin` kullanıcısı. |
+
+Workflow'un `kubeconfig` adımı `kubectl auth whoami` ile hangi kimlikle bağlandığını log'a yazar:
+
+```text
+Username    system:admin
+Groups      [system:masters system:authenticated]
+```
+
+`system:masters` grubu cluster'da her şeye yetkilidir.
+
+Cluster'ı silip yeniden kurarsanız kubeconfig değişir. Secret'ı yeni dosya ile tekrar kaydedin, yoksa
+workflow bağlanamaz.
+
+### Risk: Bu yol sadece eğitim içindir
+
+Admin kubeconfig'i CI/CD'ye vermek pratiktir, ama production'da yapılmaz:
+
+- **Tam yetki:** Dosyaya sahip olan herkes cluster'daki tüm secret'ları okuyabilir, node'lara istediği
+  pod'u yerleştirebilir, cluster'ı silebilir.
+- **API internete açık:** 6443 portu herkese açık olduğu için sızan dosya her yerden kullanılabilir.
+- **İptal etmek zor:** Kimlik bir client sertifikasıdır. Bir token gibi tek komutla iptal edilemez.
+  Sızdığından şüphelenirseniz eğitim cluster'ı için en basit çözüm, cluster'ı silip yeniden kurmaktır.
+- **Public repo:** Workflow log'ları herkese açıktır. Secret'lar log'da `***` olarak maskelenir, ama
+  workflow'a dosyayı yazdıran bir adım eklemek (örneğin `cat ~/.kube/config`) onu açığa çıkarabilir.
+
+Production'da workflow'a sadece kendi namespace'inde deploy yapabilen ayrı bir kimlik verilir
+(ServiceAccount + RBAC). Bu konu RBAC bölümünde anlatılır.
 
 ---
 
-## 6. GHCR_PULL_TOKEN secret'ı
+## 5. GHCR_PULL_TOKEN secret'ı
 
 Cluster'ın private image'ı çekebilmesi için kalıcı bir token gerekir.
 
@@ -309,9 +258,9 @@ KUBE_CONFIG
 
 ---
 
-## 7. Deployment
+## 6. Deployment
 
-[`3-deployment.yaml`](3-deployment.yaml)
+[`2-deployment.yaml`](2-deployment.yaml)
 
 ```yaml
 spec:
@@ -343,7 +292,7 @@ spec:
 | `readinessProbe` | Pod `/health` cevap verene kadar trafik almaz. Rolling update bunu bekler. |
 | `livenessProbe` | `/health` cevap vermezse container yeniden başlatılır |
 | `resources` | Scheduler pod'u yeterli kaynağı olan node'a yerleştirir |
-| `lifecycle.preStop.sleep` | Pod kapanmadan önce 5 saniye bekler. Rolling update sırasında istek kaybını önler, bkz. [13.3](#133-kesintisiz-geçiş-prestop). |
+| `lifecycle.preStop.sleep` | Pod kapanmadan önce 5 saniye bekler. Rolling update sırasında istek kaybını önler, bkz. [12.3](#123-kesintisiz-geçiş-prestop). |
 
 **Neden `latest` yerine commit etiketi?** `latest` her push'ta başka bir image'ı gösterir.
 Deployment'ta `latest` kalsaydı:
@@ -356,9 +305,9 @@ Deployment'ta `latest` kalsaydı:
 
 ---
 
-## 8. Service (Hetzner Load Balancer)
+## 7. Service (Hetzner Load Balancer)
 
-[`4-service.yaml`](4-service.yaml)
+[`3-service.yaml`](3-service.yaml)
 
 ```yaml
 metadata:
@@ -427,7 +376,7 @@ uygulanmadığı için LB'nin etkilenmemesi gerekir. Bu ayar bu rehberde test ed
 
 ---
 
-## 9. Workflow
+## 8. Workflow
 
 [`.github/workflows/week6-api.yml`](../../../.github/workflows/week6-api.yml). Her `uses:` satırının
 üstünde ne işe yaradığını anlatan bir yorum var.
@@ -525,14 +474,14 @@ data:
 Deploy adımındaki `sed`:
 
 ```bash
-sed -i "s|ghcr.io/fcakiroglu16/week6-api:latest|ghcr.io/fcakiroglu16/week6-api:sha-1a2b3c4|" 3-deployment.yaml
+sed -i "s|ghcr.io/fcakiroglu16/week6-api:latest|ghcr.io/fcakiroglu16/week6-api:sha-1a2b3c4|" 2-deployment.yaml
 ```
 
 Dosya sadece runner'da değişir, repoya geri yazılmaz.
 
 ---
 
-## 10. İlk çalıştırma ve doğrulama
+## 9. İlk çalıştırma ve doğrulama
 
 Değişiklikleri main'e push edin:
 
@@ -553,10 +502,10 @@ gh run watch
 ✓ deploy in 20s
 ```
 
-Deploy log'unda kimliğin ServiceAccount olduğu ve pull secret'ın oluştuğu görünür:
+Deploy log'unda bağlanan kimlik ve pull secret'ın oluştuğu görünür:
 
 ```text
-Username    system:serviceaccount:week6:github-deployer
+Username    system:admin
 secret/ghcr-pull-secret created
 deployment "week6-api" successfully rolled out
 ```
@@ -673,7 +622,7 @@ aşamalıdır: LB node seçer, kube-proxy pod seçer.
 
 ---
 
-## 11. Paketi private yapın
+## 10. Paketi private yapın
 
 **Dikkat:** İlk push'tan sonra paket **public** oldu. Dockerfile'daki
 `org.opencontainers.image.source` label'ı paketi repoya bağlar ve paket, repo public olduğu için
@@ -705,7 +654,7 @@ Aynı kontrolü tekrar yapın. Artık anonim token bile verilmez:
 
 ---
 
-## 12. Pull secret'ın etkisini test edin
+## 11. Pull secret'ın etkisini test edin
 
 Aynı image'ı secret olmadan ve secret ile çeken iki pod açın. `latest` etiketini kullanın, nedeni
 aşağıdaki nottadır.
@@ -778,12 +727,12 @@ bu özelliği kapatmayı değerlendirin.
 
 ---
 
-## 13. Yeni sürüm yayınlama
+## 12. Yeni sürüm yayınlama
 
 Yeni sürüm için ayrı bir işlem gerekmez. API kodunda veya yaml'larda yapılan değişiklik main'e merge
 edildiğinde workflow çalışır, yeni commit etiketiyle image üretir ve deployment'ı günceller.
 
-### 13.1 Değişikliği main'e gönderin
+### 12.1 Değişikliği main'e gönderin
 
 ```bash
 git commit -am "Week6.API: yeni özellik"
@@ -801,7 +750,7 @@ gh workflow run week6-api.yml --ref main
 Not: Elle tetikleme aynı commit üzerinde çalışırsa etiket de aynı kalır (`sha-...`). Deployment
 değişmediği için rollout başlamaz. Yeni pod'lar istiyorsanız `kubectl rollout restart` kullanın.
 
-### 13.2 Ne oldu?
+### 12.2 Ne oldu?
 
 ```bash
 kubectl -n week6 get deploy week6-api -o wide
@@ -843,7 +792,7 @@ sha-605a99a
 sha-605a99a
 ```
 
-### 13.3 Kesintisiz geçiş: preStop
+### 12.3 Kesintisiz geçiş: preStop
 
 İlk testte, `preStop` olmadan yapılan bir rollout sırasında 102 istekten 1'i başarısız oldu
 (`curl` zaman aşımı). `maxUnavailable: 0` olmasına rağmen bu olur. Nedeni, pod kapanırken iki işin
@@ -890,7 +839,7 @@ görülmedi:
 | Pod `ImagePullBackOff`, mesaj `not found` | Pull secret yok, yanlış veya token süresi dolmuş | `kubectl -n week6 get secret ghcr-pull-secret`, PAT'in süresi |
 | Pod `ImagePullBackOff`, mesaj `exec format error` veya `no match for platform` | Image arm64 build edilmiş | Build'de `--platform linux/amd64` |
 | Workflow `kubeconfig` adımında zaman aşımı | 6443 portu GitHub'a kapalı | `hcloud firewall describe egitim` |
-| Workflow `Forbidden` hatası | Role'de gerekli izin yok | `kubectl auth can-i <fiil> <kaynak> -n week6 --as=system:serviceaccount:week6:github-deployer` |
+| Workflow `Unauthorized` veya sertifika hatası | Cluster yeniden kuruldu, `KUBE_CONFIG` eski | `KUBE_CONFIG` secret'ını yeni `kubeconfig` ile güncelleyin |
 | Workflow `GHCR_PULL_TOKEN secret'ı tanımlı değil` | Secret eklenmemiş | `gh secret list` |
 | Build adımında `denied: permission_denied` | Workflow'da `packages: write` yok | `permissions` bloğu |
 | `rollout status` zaman aşımı | Pod `/health` probe'unu geçemiyor | `kubectl -n week6 describe pod <pod>` |
@@ -905,8 +854,10 @@ Uygulamayı silmek için (admin kubeconfig ile):
 kubectl delete namespace week6
 ```
 
-Namespace silinince içindeki deployment, service, pull secret, ServiceAccount ve token da silinir.
-GitHub'daki `KUBE_CONFIG` secret'ı geçersiz hale gelir.
+Namespace silinince içindeki deployment, service ve pull secret da silinir.
+
+**Dikkat:** GitHub'daki `KUBE_CONFIG` secret'ı geçerli kalır, çünkü admin kimliği namespace'e bağlı
+değildir. Cluster duruyorsa bu secret'ı aşağıdaki gibi mutlaka silin.
 
 Service silinince CCM Hetzner Load Balancer'ı da siler. Kontrol edin, listede `week6-api` kalmamalı:
 
