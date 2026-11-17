@@ -58,6 +58,11 @@ worker_node_pools:
 # Varsayılan olarak açık: cloud_controller_manager, csi_driver, system_upgrade_controller
 # Varsayılan olarak kapalı: traefik, servicelb, metrics_server
 addons:
+  cloud_controller_manager:
+    enabled: true
+    # Upstream manifest + varsayılan LB lokasyonu (fsn1). Annotation'sız LoadBalancer servisleri de LB açar.
+    # Dosya adındaki "-networks" kalmalı: private network açık. Bkz. ccm-networks.yaml
+    manifest_url: "https://raw.githubusercontent.com/Fcakiroglu16/docker-kubernetes-for-dotnet-developers-oct-2026/main/kubernetes/week-6/hetzner-k3s/ccm-networks.yaml"
   cluster_autoscaler:
     enabled: false # autoscaling pool yok
   traefik:

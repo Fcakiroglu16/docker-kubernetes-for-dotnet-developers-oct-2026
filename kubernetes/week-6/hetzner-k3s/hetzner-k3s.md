@@ -393,6 +393,23 @@ değerinde kalır.
 | `servicelb` | kapalı | k3s'in kendi LoadBalancer'ı. CCM bu işi Hetzner LB ile yaptığı için kapalıdır. |
 | `metrics_server` | kapalı | `kubectl top` ve HPA için CPU ve bellek ölçümleri. |
 
+**Neden CCM için özel manifest_url?** Hetzner CCM, LB'nin hangi lokasyonda açılacağını bilmezse
+`type: LoadBalancer` servisi `<pending>` kalır. Hata şudur: `neither load-balancer.hetzner.cloud/location
+nor load-balancer.hetzner.cloud/network-zone set`. hetzner-k3s'te varsayılan lokasyon için config
+anahtarı yoktur. Bu yüzden `manifest_url`, upstream v1.33.0 manifest'inin repodaki kopyasını
+(`ccm-networks.yaml`) gösterir. Bu kopyaya `HCLOUD_LOAD_BALANCERS_LOCATION=fsn1` ve
+`HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP=true` env'leri eklenmiştir. Böylece annotation vermeden açılan
+her LoadBalancer servisi fsn1'de bir LB alır. Servisteki annotation'lar bu varsayılanları ezer.
+hetzner-k3s manifest'i URL'den çeker. Dosyadaki değişiklik `main`'e push edilmeden `create` ile
+etkili olmaz.
+
+```yaml
+addons:
+  cloud_controller_manager:
+    enabled: true
+    manifest_url: "https://raw.githubusercontent.com/Fcakiroglu16/docker-kubernetes-for-dotnet-developers-oct-2026/main/kubernetes/week-6/hetzner-k3s/ccm-networks.yaml"
+```
+
 **Neden cluster_autoscaler kapalı?** Bu config'te autoscaling pool yok. Açık bırakılması gereksiz bir
 pod çalıştırır. Ayrıca beklenmedik sunucu açılıp ek ücret çıkmasının önüne geçer.
 
