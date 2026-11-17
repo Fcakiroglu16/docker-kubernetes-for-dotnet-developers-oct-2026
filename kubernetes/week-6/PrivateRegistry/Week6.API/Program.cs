@@ -9,7 +9,7 @@ var app = builder.Build();
 // Pod adı (MachineName) hangi pod'un cevap verdiğini gösterir.
 app.MapGet("/", () => Results.Ok(new
 {
-    message = "Week6.API çalışıyor........",
+    message = "Week6.API çalışıyor.............",
     version = Environment.GetEnvironmentVariable("APP_VERSION") ?? "local",
     pod = Environment.MachineName
 }));
