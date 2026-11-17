@@ -51,7 +51,7 @@ jobs:
         env:
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
         run: |
-          kubectl create secret docker-registry ghcr-pull-secret \
+          kubectl apply secret docker-registry ghcr-pull-secret \
             --namespace week6 \
             --docker-server=ghcr.io \
             --docker-username=fcakiroglu16 \
