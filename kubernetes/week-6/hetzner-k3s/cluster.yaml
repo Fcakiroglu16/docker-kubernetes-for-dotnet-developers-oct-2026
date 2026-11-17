@@ -50,8 +50,9 @@ masters_pool:
 worker_node_pools:
   - name: worker # node adları: egitim-pool-worker-worker1, -worker2
     instance_type: cx23
-    instance_count: 2
+    instance_count: 3
     location: fsn1 # master ile aynı lokasyon
+    
 
 # --- Eklentiler ---
 # Varsayılan olarak açık: cloud_controller_manager, csi_driver, system_upgrade_controller
